@@ -1,0 +1,20 @@
+# ローカル専用（gitignored）
+CLAUDE.local.md
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# エディタ
+.vscode/
+*.swp
+
+# Node
+node_modules/
+
+# 環境変数・認証情報
+.env
+.env.*
+credentials.json
+token.json
