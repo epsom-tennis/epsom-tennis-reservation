@@ -38,6 +38,7 @@ input:focus{border-color:#06c755;outline:none}
 .ev-desc{font-size:12px;color:#777;margin-top:4px;line-height:1.6;white-space:pre-wrap}
 .ev-deadline{font-size:11px;color:#aaa;margin-top:4px}
 .add-btn{width:100%;padding:12px;background:#fff;color:#06c755;border:2px dashed #06c755;border-radius:9px;font-size:15px;font-weight:bold;cursor:pointer;margin-bottom:10px;letter-spacing:.3px}
+.add-modal-backdrop{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;padding:16px}
 .remove-btn{float:right;padding:4px 10px;background:#fff;color:#e00;border:1px solid #e00;border-radius:5px;font-size:12px;cursor:pointer;margin-bottom:8px}
 .btn{width:100%;padding:14px;background:#06c755;color:#fff;border:none;border-radius:9px;font-size:16px;font-weight:bold;cursor:pointer;margin-top:4px;letter-spacing:.5px}
 .btn:disabled{background:#bbb;cursor:default}
@@ -82,6 +83,7 @@ var LIFF_ID = '2010231562-h4nq4P3s';
 
 var userId = null, eventsData = [], memberData = null;
 var participantCount = 1;
+var pendingAddParticipantData = null;
 
 var AREA_OPTS  = ['東京','神奈川','千葉','埼玉','その他関東圏','関東圏外'];
 var ENV_OPTS   = ['スクールに通っている','会社のサークル','学校の部活・サークル','テニス仲間とコートを借りる'];
@@ -276,12 +278,6 @@ function renderForm() {
   // 参加者カード（主参加者 + 既存の追加参加者）
   var participantSections = participantSectionHtml(1, memberData);
   participantCount = 1;
-  if (memberData && memberData.additionalParticipants && memberData.additionalParticipants.length > 0) {
-    memberData.additionalParticipants.forEach(function(p, idx) {
-      participantCount++;
-      participantSections += participantSectionHtml(participantCount, p);
-    });
-  }
 
   fw.innerHTML =
     retNote +
@@ -352,7 +348,23 @@ function renderForm() {
     '</div>' +
 
     '<div id="gerr" class="gerr"></div>' +
-    '<button class="btn" id="sbtn" onclick="doSubmit()">送信する</button>';
+    '<button class="btn" id="sbtn" onclick="doSubmit()">送信する</button>' +
+
+    '<div id="addParticipantModal" class="add-modal-backdrop" style="display:none">' +
+      '<div style="background:#fff;border-radius:14px;padding:20px 18px;max-width:440px;width:100%">' +
+        '<div style="font-weight:bold;font-size:16px;margin-bottom:12px">👥 参加者の追加</div>' +
+        '<div style="font-size:13px;color:#444;background:#fff8ee;border:1px solid #ffd580;border-radius:8px;padding:12px;margin-bottom:14px;line-height:1.8">' +
+          '⚠️ 当落結果・集合時間などの通知は<strong>この応募いただいたLINEアカウント</strong>に届きます。<br>' +
+          '知人・友人のまとめ応募はご遠慮ください。<br>' +
+          '追加できるのは基本的に<strong>親族の方（お子様など）</strong>に限ります。' +
+        '</div>' +
+        '<div id="prevParticipantOptions" style="margin-bottom:14px"></div>' +
+        '<div style="display:flex;gap:10px">' +
+          '<button onclick="cancelAddParticipant()" style="flex:1;padding:11px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:15px;cursor:pointer">キャンセル</button>' +
+          '<button onclick="confirmAddParticipant()" style="flex:1;padding:11px;background:#06c755;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer">追加する</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
 
   fw.style.display = '';
 }
@@ -360,12 +372,47 @@ function renderForm() {
 // ========== 追加参加者操作 ==========
 
 function addParticipant() {
+  var modal = document.getElementById('addParticipantModal');
+  var prevOpts = document.getElementById('prevParticipantOptions');
+  pendingAddParticipantData = null;
+
+  var prevParticipants = (memberData && memberData.additionalParticipants) || [];
+  if (prevParticipants.length > 0) {
+    var html = '<div style="font-size:13px;color:#555;margin-bottom:8px;font-weight:bold">データを選択してください</div>';
+    prevParticipants.forEach(function(p, i) {
+      html += '<label class="opt" style="margin-bottom:6px"><input type="radio" name="addPType" value="prev_' + i + '" onchange="onAddTypeChange(this.value)"><span>' + h(p.name || '参加者' + (i + 2)) + '（保存済み）</span></label>';
+    });
+    html += '<label class="opt"><input type="radio" name="addPType" value="new" checked onchange="onAddTypeChange(this.value)"><span>新しく入力する</span></label>';
+    prevOpts.innerHTML = html;
+  } else {
+    prevOpts.innerHTML = '';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function onAddTypeChange(value) {
+  if (value === 'new') {
+    pendingAddParticipantData = null;
+  } else {
+    var prevIdx = parseInt(value.replace('prev_', ''));
+    pendingAddParticipantData = (memberData && memberData.additionalParticipants) ? memberData.additionalParticipants[prevIdx] : null;
+  }
+}
+
+function cancelAddParticipant() {
+  document.getElementById('addParticipantModal').style.display = 'none';
+}
+
+function confirmAddParticipant() {
+  document.getElementById('addParticipantModal').style.display = 'none';
   participantCount++;
   var container = document.getElementById('participantSections');
   var div = document.createElement('div');
-  div.innerHTML = participantSectionHtml(participantCount, null);
+  div.innerHTML = participantSectionHtml(participantCount, pendingAddParticipantData);
   container.appendChild(div.firstChild);
   refreshEventParticipantLists();
+  pendingAddParticipantData = null;
 }
 
 function removeParticipant(idx) {
