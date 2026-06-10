@@ -248,6 +248,8 @@ function renderForm() {
       var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
       var descLine  = ev.description ? '<div class="ev-desc">' + h(ev.description) + '</div>' : '';
       var perEvQ =
+        '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label>' +
+        '<div id="ev_p_list_' + i + '" class="clist"></div></div>' +
         '<div class="fg" style="margin-bottom:12px"><label class="fl">コーチのレッスンについて<span class="req">*</span></label>' +
         '<div class="rlist">' + radioHtml('coach_' + i, COACH_OPTS, '') + '</div></div>' +
         '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label>' +
@@ -363,11 +365,13 @@ function addParticipant() {
   var div = document.createElement('div');
   div.innerHTML = participantSectionHtml(participantCount, null);
   container.appendChild(div.firstChild);
+  refreshEventParticipantLists();
 }
 
 function removeParticipant(idx) {
   var el = document.getElementById('p_section_' + idx);
   if (el) el.remove();
+  refreshEventParticipantLists();
 }
 
 // ========== 年齢変更で緊急連絡先の必須マーク切替 ==========
@@ -457,6 +461,35 @@ function validateParticipant(p, idx, errs) {
 
 // ========== 送信 ==========
 
+function getParticipantName(idx) {
+  var fEl = document.getElementById('fN_' + idx);
+  var gEl = document.getElementById('gN_' + idx);
+  var name = ((fEl ? fEl.value.trim() : '') + ' ' + (gEl ? gEl.value.trim() : '')).trim();
+  return name || (idx === 1 ? '参加者1（メイン）' : '参加者' + idx);
+}
+
+function renderEventParticipants(evIdx) {
+  var container = document.getElementById('ev_p_list_' + evIdx);
+  if (!container) return;
+  var prevState = {}, hadPrev = false;
+  container.querySelectorAll('input[type="checkbox"]').forEach(function(el) {
+    prevState[el.value] = el.checked; hadPrev = true;
+  });
+  var html = '';
+  for (var i = 1; i <= participantCount; i++) {
+    if (!document.getElementById('p_section_' + i)) continue;
+    var isChecked = !hadPrev || !(String(i) in prevState) || prevState[String(i)];
+    html += '<label class="opt"><input type="checkbox" name="ev_p_' + evIdx + '" value="' + i + '"' + (isChecked ? ' checked' : '') + '><span>' + h(getParticipantName(i)) + '</span></label>';
+  }
+  container.innerHTML = html;
+}
+
+function refreshEventParticipantLists() {
+  document.querySelectorAll('input[name="ev"]:checked').forEach(function(cb) {
+    renderEventParticipants(parseInt(cb.value));
+  });
+}
+
 function onEventToggle(idx) {
   var cb     = document.querySelector('input[name="ev"][value="' + idx + '"]');
   var detail = document.getElementById('ev_detail_' + idx);
@@ -468,7 +501,9 @@ function onEventToggle(idx) {
     label.style.borderRadius = checked ? '8px 8px 0 0' : '';
     label.style.borderColor  = checked ? '#9de0b4' : '';
   }
-  if (!checked) {
+  if (checked) {
+    renderEventParticipants(idx);
+  } else {
     detail.querySelectorAll('input').forEach(function(el){ el.checked = false; });
   }
 }
@@ -497,6 +532,7 @@ function doSubmit() {
   evIdxs.forEach(function(i) {
     var idx    = parseInt(i);
     var evName = h(eventsData[idx] ? eventsData[idx].name : ('イベント' + (idx + 1)));
+    if (chk('ev_p_' + idx).length === 0) errs.push('「' + evName + '」応募する参加者を選択してください。');
     if (!rv('coach_' + idx)) errs.push('「' + evName + '」コーチのレッスンについて回答してください。');
     if (chk('src_' + idx).length === 0) errs.push('「' + evName + '」イベントを知ったきっかけを選択してください。');
     if (chk('rsn_' + idx).length === 0) errs.push('「' + evName + '」参加応募のきっかけを選択してください。');
@@ -516,9 +552,10 @@ function doSubmit() {
   var selEvs = evIdxs.map(function(i) {
     var idx = parseInt(i);
     return Object.assign({}, eventsData[idx], {
-      coachKnowledge: rv('coach_' + idx),
-      eventSource:    chk('src_' + idx),
-      applyReason:    chk('rsn_' + idx),
+      coachKnowledge:  rv('coach_' + idx),
+      eventSource:     chk('src_' + idx),
+      applyReason:     chk('rsn_' + idx),
+      participantNums: chk('ev_p_' + idx).map(function(v){ return parseInt(v); }),
     });
   });
 

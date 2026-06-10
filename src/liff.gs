@@ -62,9 +62,9 @@ function submitLiffApplication(data) {
     const appliedParticipantNames = []; // 新規応募した参加者のフルネーム
 
     // 主参加者 + 追加参加者をまとめて処理
-    const participants = [{ ...data, _suffix: '' }];
+    const participants = [{ ...data, _suffix: '', _participantNum: 1 }];
     (data.additionalParticipants || []).forEach(function(p, idx) {
-      participants.push({ ...p, userId: data.userId + '_p' + (idx + 2), _suffix: '（追加' + (idx + 2) + '人目）' });
+      participants.push({ ...p, userId: data.userId + '_p' + (idx + 2), _suffix: '（追加' + (idx + 2) + '人目）', _participantNum: idx + 2 });
     });
 
     for (const p of participants) {
@@ -105,6 +105,10 @@ function submitLiffApplication(data) {
       // 各選択イベントの当落シートに応募行を追加
       let pHasNewApply = false;
       for (const ev of (data.selectedEvents || [])) {
+        // participantNums が指定されている場合はその参加者のみ応募
+        if (ev.participantNums && ev.participantNums.length > 0 && !ev.participantNums.includes(p._participantNum)) {
+          continue;
+        }
         const resultSheet = ss.getSheetByName(ev.resultSheetName);
         if (!resultSheet) continue;
         const resultData = resultSheet.getDataRange().getValues();
