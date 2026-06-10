@@ -496,7 +496,7 @@ function doSubmit() {
 
   evIdxs.forEach(function(i) {
     var idx    = parseInt(i);
-    var evName = eventsData[idx] ? eventsData[idx].name : ('イベント' + (idx + 1));
+    var evName = h(eventsData[idx] ? eventsData[idx].name : ('イベント' + (idx + 1)));
     if (!rv('coach_' + idx)) errs.push('「' + evName + '」コーチのレッスンについて回答してください。');
     if (chk('src_' + idx).length === 0) errs.push('「' + evName + '」イベントを知ったきっかけを選択してください。');
     if (chk('rsn_' + idx).length === 0) errs.push('「' + evName + '」参加応募のきっかけを選択してください。');
