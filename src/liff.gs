@@ -4,7 +4,7 @@
 
 // GitHub Pages版LIFFにリダイレクト（GAS経由では LINE webview で動作しないため）
 function getLiffPage() {
-  const url = 'https://sdaito-southpaw.github.io/epsom-tennis-reservation/liff/';
+  const url = 'https://epsom-tennis.github.io/epsom-tennis-reservation/liff/';
   return HtmlService.createHtmlOutput(
     '<html><head><meta http-equiv="refresh" content="0; url=' + url + '"></head>' +
     '<body>リダイレクト中... <a href="' + url + '">こちらをクリック</a></body></html>'
