@@ -170,6 +170,7 @@ window.addEventListener('load', function() {
       if (!results) return;
       eventsData = results[0] || [];
       memberData = results[1] || null;
+      if (new URLSearchParams(window.location.search).get('test') === 'first') memberData = null;
       renderForm();
     })
     .catch(function(e) {
