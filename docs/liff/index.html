@@ -374,9 +374,7 @@ function buildEventsHtml() {
     var appliedBadge = ev.alreadyApplied
       ? ' <span style="background:#198754;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">応募済み</span>'
       : '';
-    var evCheckbox = ev.alreadyApplied
-      ? '<input type="checkbox" name="ev" value="' + i + '" disabled>'
-      : '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')">';
+    var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')">';
     var perEvQ =
       '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
       '<div class="fg" style="margin-bottom:12px"><label class="fl">コーチのレッスンについて<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, COACH_OPTS, '') + '</div></div>' +
@@ -804,7 +802,8 @@ function doSubmit() {
         ? '応募イベント:\n' + applied.map(function(n){ return '・' + n; }).join('\n') + '\n\n当落結果はLINEでお知らせします。\nしばらくお待ちください。'
         : 'プロフィール情報を更新しました。\nありがとうございます！';
       document.getElementById('success').style.display = '';
-      setTimeout(function(){ try{ if(liff.isInClient()) liff.closeWindow(); }catch(e){} }, 3000);
+      document.getElementById('saction').innerHTML =
+        '<button class="btn" style="max-width:300px;margin:20px auto 0;display:block;background:#4a90d9" onclick="reApply()">続けて別の応募をする</button>';
     } else {
       btn.disabled = false; btn.textContent = '応募する';
       gerr.textContent = res.error || '送信に失敗しました。再度お試しください。';
@@ -816,6 +815,29 @@ function doSubmit() {
     gerr.textContent = '通信エラーが発生しました。再度お試しください。';
     gerr.style.display = 'block';
   });
+}
+
+// ========== 応募後の再応募 ==========
+
+function reApply() {
+  document.getElementById('success').style.display = 'none';
+  document.getElementById('saction').innerHTML = '';
+  document.getElementById('fw').style.display = 'none';
+  document.getElementById('loading').style.display = '';
+  participantCount = 1;
+  profileAccordionOpen = false;
+
+  fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId))
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      eventsData = data || [];
+      document.getElementById('loading').style.display = 'none';
+      renderForm();
+    })
+    .catch(function() {
+      document.getElementById('loading').style.display = 'none';
+      showErr('イベント情報の再取得に失敗しました。もう一度LINEから開き直してください。');
+    });
 }
 
 function showErr(msg) {
