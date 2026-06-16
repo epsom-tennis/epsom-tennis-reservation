@@ -645,6 +645,7 @@ function doSubmitProfile() {
     body: JSON.stringify({
       action: 'submitLiff',
       userId: userId,
+      idToken: liff.getIDToken(),
       familyName: mainP.familyName, givenName: mainP.givenName,
       familyNameKana: mainP.familyNameKana, givenNameKana: mainP.givenNameKana,
       age: mainP.age, gender: mainP.gender, tennisLevel: mainP.tennisLevel,
@@ -783,6 +784,7 @@ function doSubmit() {
     body: JSON.stringify({
       action: 'submitLiff',
       userId: userId,
+      idToken: liff.getIDToken(),
       familyName: mainP.familyName, givenName: mainP.givenName,
       familyNameKana: mainP.familyNameKana, givenNameKana: mainP.givenNameKana,
       age: mainP.age, gender: mainP.gender, tennisLevel: mainP.tennisLevel,

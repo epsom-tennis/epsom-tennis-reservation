@@ -2,6 +2,26 @@
 // doGet(?page=liff) からルーティングされる。
 // スクリプトプロパティ LIFF_ID を設定してから使用する。
 
+// LIFFのIDトークンをLINEのAPIで検証し、userIdが一致するか確認する
+function verifyLiffToken_(idToken, expectedUserId) {
+  if (!idToken) return false;
+  try {
+    const channelId = getProp('LIFF_ID').split('-')[0]; // "2010231562-h4nq4P3s" → "2010231562"
+    const res = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+      method: 'POST',
+      contentType: 'application/x-www-form-urlencoded',
+      payload: 'id_token=' + encodeURIComponent(idToken) + '&client_id=' + encodeURIComponent(channelId),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) return false;
+    const body = JSON.parse(res.getContentText());
+    return body.sub === expectedUserId;
+  } catch (err) {
+    Logger.log('verifyLiffToken_ error: ' + err.toString());
+    return false;
+  }
+}
+
 // GitHub Pages版LIFFにリダイレクト（GAS経由では LINE webview で動作しないため）
 function getLiffPage() {
   const url = 'https://epsom-tennis.github.io/epsom-tennis-reservation/liff/';
@@ -56,6 +76,11 @@ function extractMemberRow_(row) {
 // LIFF応募フォームの送信処理（クライアントから呼び出す）
 function submitLiffApplication(data) {
   try {
+    // LIFFトークンでuserIdの正当性を検証
+    if (!verifyLiffToken_(data.idToken, data.userId)) {
+      return { success: false, error: '認証に失敗しました。LINEアプリから再度開き直してください。' };
+    }
+
     const membersSheet = getSheet(SHEET.MEMBERS);
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
     const appliedNames = [];
