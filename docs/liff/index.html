@@ -350,6 +350,7 @@ function renderEntryForm() {
     MODAL_HTML;
 
   fw.style.display = '';
+  updateSubmitBtnLabel();
 }
 
 // ========== プロフィールカードHTML ==========
@@ -765,7 +766,7 @@ function doSubmit() {
     if (chk('rsn_' + idx).length === 0) errs.push('「' + evName + '」参加応募のきっかけを選択してください。');
   });
 
-  if (!media) errs.push('撮影・インタビューへの協力同意が必要です。');
+  if (evIdxs.length > 0 && !media) errs.push('撮影・インタビューへの協力同意が必要です。');
 
   if (errs.length) {
     gerr.innerHTML = errs.join('<br>');
