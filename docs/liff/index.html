@@ -608,6 +608,14 @@ function onEventToggle(idx) {
   } else {
     detail.querySelectorAll('input').forEach(function(el){ el.checked = false; });
   }
+  updateSubmitBtnLabel();
+}
+
+function updateSubmitBtnLabel() {
+  var btn = document.getElementById('sbtn');
+  if (!btn) return;
+  var anyChecked = chk('ev').length > 0;
+  btn.textContent = anyChecked ? '応募する' : 'プロフィールを更新する';
 }
 
 // ========== プロフィール登録送信（初回）==========
@@ -747,7 +755,6 @@ function doSubmit() {
   var evIdxs = chk('ev');
   var media = document.getElementById('mediaCons').checked;
 
-  if (evIdxs.length === 0) errs.push('応募するイベントを選択してください。');
 
   evIdxs.forEach(function(i) {
     var idx = parseInt(i);
