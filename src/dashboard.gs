@@ -127,6 +127,7 @@ function getLiffEventsJson(userId) {
       coachName:       ev.coachName   || '',
       description:     ev.description || '',
       eventType:       ev.eventType   || 'オフライン',
+      channelUrl:      ev.channelUrl  || '',
       alreadyApplied:  appliedSheets.has(ev.resultSheetName),
     }));
   } catch (err) {
@@ -488,11 +489,19 @@ function getDashboardHtml() {
 '<div id="newEventModal" class="card p-3 mb-3" style="display:none;border:2px solid #198754">' +
 '<h6 class="mb-3">📋 新しいイベントを登録</h6>' +
 '<div class="row g-2">' +
+'<div class="col-12"><label class="form-label fw-bold">イベント種別</label>' +
+'<select class="form-select" id="ne_type" onchange="onEventTypeChange()">' +
+'<option value="オフライン">📍 オフライン</option>' +
+'<option value="オンライン">💻 オンライン（常時募集）</option>' +
+'</select></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント名<span class="text-danger">*</span></label>' +
 '<input type="text" class="form-control" id="ne_name" placeholder="コーチAレッスン 7月15日"></div>' +
+'<!-- オフライン専用 -->' +
+'<div id="ne_offline_fields" class="col-12">' +
+'<div class="row g-2">' +
 '<div class="col-6"><label class="form-label fw-bold">応募開始日</label>' +
 '<input type="date" class="form-control" id="ne_opening"><div class="form-text">空欄にするとすぐ表示</div></div>' +
-'<div class="col-6"><label class="form-label fw-bold">募集終了日<span class="text-danger">*</span></label>' +
+'<div class="col-6"><label class="form-label fw-bold">募集終了日<span class="text-danger" id="ne_closing_req">*</span><span class="text-muted small fw-normal ms-1" id="ne_closing_opt" style="display:none">（任意）</span></label>' +
 '<input type="date" class="form-control" id="ne_closing"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">開催日<span class="text-danger">*</span></label>' +
 '<input type="date" class="form-control" id="ne_date"></div>' +
@@ -504,12 +513,22 @@ function getDashboardHtml() {
 '</div></div>' +
 '<div class="col-6"><label class="form-label fw-bold">開催場所</label>' +
 '<input type="text" class="form-control" id="ne_venue" placeholder="渋谷テニスコート"></div>' +
+'</div></div>' +
+'<!-- オンライン専用 -->' +
+'<div id="ne_online_fields" class="col-12" style="display:none">' +
+'<div class="row g-2">' +
+'<div class="col-12"><label class="form-label fw-bold">チャンネルURL</label>' +
+'<input type="url" class="form-control" id="ne_channel_url" placeholder="https://..."></div>' +
+'<div class="col-6"><label class="form-label fw-bold">応募開始日<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="date" class="form-control" id="ne_opening_online"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">募集終了日<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="date" class="form-control" id="ne_closing_online"></div>' +
+'</div></div>' +
+'<!-- 共通 -->' +
 '<div class="col-12"><label class="form-label fw-bold">コーチ名</label>' +
 '<input type="text" class="form-control" id="ne_coach" placeholder="山田 コーチ"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント内容</label>' +
 '<textarea class="form-control" id="ne_desc" rows="3" placeholder="イベントの説明・内容を入力"></textarea></div>' +
-'<div class="col-12"><label class="form-label fw-bold">イベント種別</label>' +
-'<select class="form-select" id="ne_type"><option value="オフライン">オフライン</option><option value="オンライン">オンライン</option></select></div>' +
 '</div>' +
 '<div class="d-flex gap-2 mt-3 align-items-center">' +
 '<button class="btn btn-success" onclick="submitNewEvent()">登録する</button>' +
@@ -650,28 +669,49 @@ function getDashboardHtml() {
 '};' +
 
 'function showNewEventModal(){document.getElementById("newEventModal").style.display="";}' +
-'function hideNewEventModal(){document.getElementById("newEventModal").style.display="none";document.getElementById("ne_result").textContent="";}' +
+'function hideNewEventModal(){' +
+'document.getElementById("newEventModal").style.display="none";' +
+'document.getElementById("ne_result").textContent="";' +
+'document.getElementById("ne_type").value="オフライン";' +
+'onEventTypeChange();' +
+'["ne_name","ne_opening","ne_closing","ne_date","ne_venue","ne_coach","ne_desc","ne_channel_url","ne_opening_online","ne_closing_online"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
+'["ne_time_start","ne_time_end"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
+'}' +
+'function onEventTypeChange(){' +
+'var isOnline=document.getElementById("ne_type").value==="オンライン";' +
+'document.getElementById("ne_offline_fields").style.display=isOnline?"none":"";' +
+'document.getElementById("ne_online_fields").style.display=isOnline?"":"none";' +
+'}' +
 'function submitNewEvent(){' +
+'var evType=document.getElementById("ne_type").value;' +
+'var isOnline=evType==="オンライン";' +
 'var name=document.getElementById("ne_name").value.trim();' +
-'var date=document.getElementById("ne_date").value.replace(/-/g,"/");' +
-'var closing=document.getElementById("ne_closing").value.replace(/-/g,"/");' +
-'var opening=document.getElementById("ne_opening").value.replace(/-/g,"/");' +
-'var tS=document.getElementById("ne_time_start").value;' +
-'var tE=document.getElementById("ne_time_end").value;' +
-'var time=tS&&tE?tS+"〜"+tE:(tS||"");' +
-'var venue=document.getElementById("ne_venue").value.trim();' +
 'var coach=document.getElementById("ne_coach").value.trim();' +
 'var desc=document.getElementById("ne_desc").value.trim();' +
-'var evType=document.getElementById("ne_type").value;' +
-'if(!name||!date||!closing){alert("イベント名・開催日・募集終了日は必須です。");return;}' +
+'var date="",closing="",opening="",time="",venue="",channelUrl="";' +
+'if(isOnline){' +
+'channelUrl=(document.getElementById("ne_channel_url")||{}).value||"";' +
+'opening=((document.getElementById("ne_opening_online")||{}).value||"").replace(/-/g,"/");' +
+'closing=((document.getElementById("ne_closing_online")||{}).value||"").replace(/-/g,"/");' +
+'}else{' +
+'date=document.getElementById("ne_date").value.replace(/-/g,"/");' +
+'closing=document.getElementById("ne_closing").value.replace(/-/g,"/");' +
+'opening=document.getElementById("ne_opening").value.replace(/-/g,"/");' +
+'var tS=document.getElementById("ne_time_start").value;' +
+'var tE=document.getElementById("ne_time_end").value;' +
+'time=tS&&tE?tS+"〜"+tE:(tS||"");' +
+'venue=document.getElementById("ne_venue").value.trim();' +
+'}' +
+'if(!name){alert("イベント名は必須です。");return;}' +
+'if(!isOnline&&(!date||!closing)){alert("オフラインイベントには開催日・募集終了日が必須です。");return;}' +
 'var res=document.getElementById("ne_result");res.textContent="登録中...";' +
 'google.script.run' +
 '.withSuccessHandler(function(r){' +
-'if(r.success){res.textContent="✅ 登録完了（"+r.eventDate+" 開催）";setTimeout(function(){hideNewEventModal();loadEvents();},1500);}' +
+'if(r.success){res.textContent="✅ 登録完了";setTimeout(function(){hideNewEventModal();loadEvents();},1500);}' +
 'else{res.textContent="❌ "+r.error;}' +
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
-'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,eventType:evType});' +
+'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType});' +
 '}' +
 
 'function showTab(t){' +

@@ -62,6 +62,9 @@ function setupSpreadsheet() {
     if (!configSheet.getRange(1, 11).getValue()) configSheet.getRange(1, 11).setValue('応募開始日');
     configSheet.getRange(1, 12).setValue('イベント種別');
   }
+  if (configSheet.getLastRow() > 0 && !configSheet.getRange(1, 13).getValue()) {
+    configSheet.getRange(1, 13).setValue('チャンネルURL');
+  }
 
   // アクション履歴シート
   let actionSheet = ss.getSheetByName(SHEET.ACTION_LOG);
@@ -85,18 +88,26 @@ function setupSpreadsheet() {
 // ダッシュボードからイベントを新規作成する（google.script.runから呼び出す）
 function createNewEvent(data) {
   try {
-    const { name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, eventType } = data;
-    if (!name || !eventDate || !closingDate) {
-      return { success: false, error: 'イベント名・開催日・募集終了日は必須です。' };
+    const { name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType } = data;
+    const isOnline = (eventType || 'オフライン') === 'オンライン';
+    if (!name) return { success: false, error: 'イベント名は必須です。' };
+    if (!isOnline && (!eventDate || !closingDate)) {
+      return { success: false, error: 'オフラインイベントには開催日・募集終了日が必須です。' };
     }
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
     const configSheet = ss.getSheetByName(SHEET.CONFIG);
     if (!configSheet) return { success: false, error: '設定シートが見つかりません。' };
 
-    const evDateObj = new Date(eventDate);
-    if (isNaN(evDateObj.getTime())) return { success: false, error: '開催日の形式が正しくありません（YYYY/MM/DD）。' };
-    const closingDateObj = new Date(closingDate);
-    if (isNaN(closingDateObj.getTime())) return { success: false, error: '募集終了日の形式が正しくありません（YYYY/MM/DD）。' };
+    let evDateObj = null;
+    if (eventDate) {
+      evDateObj = new Date(eventDate);
+      if (isNaN(evDateObj.getTime())) return { success: false, error: '開催日の形式が正しくありません（YYYY/MM/DD）。' };
+    }
+    let closingDateObj = null;
+    if (closingDate) {
+      closingDateObj = new Date(closingDate);
+      if (isNaN(closingDateObj.getTime())) return { success: false, error: '募集終了日の形式が正しくありません（YYYY/MM/DD）。' };
+    }
     let openingDateObj = null;
     if (openingDate) {
       openingDateObj = new Date(openingDate);
@@ -112,8 +123,10 @@ function createNewEvent(data) {
     }
 
     // シート名用識別子を生成（シート名に使えない文字を除去）
-    const identifier = name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '').substring(0, 20)
-      + '_' + Utilities.formatDate(evDateObj, 'Asia/Tokyo', 'MMdd');
+    const dateSuffix = evDateObj
+      ? Utilities.formatDate(evDateObj, 'Asia/Tokyo', 'MMdd')
+      : Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
+    const identifier = name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '').substring(0, 20) + '_' + dateSuffix;
     const appSheetName    = identifier + '_応募';
     const resultSheetName = identifier + '_当落';
 
@@ -131,8 +144,8 @@ function createNewEvent(data) {
 
     // 設定シートに行を追加（G〜K列に詳細情報）
     configSheet.appendRow([
-      name, evDateObj, closingDateObj, appSheetName, '', '',
-      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン',
+      name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
+      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '',
     ]);
 
     return {
@@ -245,14 +258,15 @@ function setupNewEvent() {
   );
 }
 
-// 設定シートにイベント種別列（L列）のヘッダーを追加する。GASエディタから一度だけ手動実行。
+// 設定シートにイベント種別・チャンネルURL列のヘッダーを追加する。GASエディタから一度だけ手動実行。
 function addEventTypeHeader() {
   const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
   const configSheet = ss.getSheetByName(SHEET.CONFIG);
   if (!configSheet) { SpreadsheetApp.getUi().alert('設定シートが見つかりません。'); return; }
   if (!configSheet.getRange(1, 11).getValue()) configSheet.getRange(1, 11).setValue('応募開始日');
-  configSheet.getRange(1, 12).setValue('イベント種別');
-  SpreadsheetApp.getUi().alert('完了！設定シートのL列に「イベント種別」を追加しました。\n\nオンラインイベントの行に「オンライン」と入力してください。\n（空欄はオフライン扱い）');
+  if (!configSheet.getRange(1, 12).getValue()) configSheet.getRange(1, 12).setValue('イベント種別');
+  if (!configSheet.getRange(1, 13).getValue()) configSheet.getRange(1, 13).setValue('チャンネルURL');
+  SpreadsheetApp.getUi().alert('完了！\nL列：イベント種別（オンライン/オフライン）\nM列：チャンネルURL\nを追加しました。');
 }
 
 // システム診断（テスト用）：シート存在確認・スクリプトプロパティ確認・実データ確認

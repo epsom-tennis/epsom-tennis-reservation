@@ -444,9 +444,13 @@ function buildEventGroupHtml(label, events) {
 }
 
 function buildSingleEventHtml(ev, i) {
+  var isOnline  = (ev.eventType || 'オフライン') === 'オンライン';
   var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
-  var dateLine  = '📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '');
+  var dateLine  = ev.eventDate ? '<span>📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '') + '</span>' : '';
   var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
+  var channelLine = (isOnline && ev.channelUrl)
+    ? '<span>🔗 <a href="' + h(ev.channelUrl) + '" target="_blank" style="color:#06c755">チャンネルを見る</a></span>'
+    : '';
   var descLine  = ev.description ? '<div class="ev-desc">' + h(ev.description) + '</div>' : '';
   var appliedBadge = ev.alreadyApplied
     ? ' <span style="background:#198754;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">応募済み</span>'
@@ -457,14 +461,15 @@ function buildSingleEventHtml(ev, i) {
     '<div class="fg" style="margin-bottom:12px"><label class="fl">コーチのレッスンについて<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, COACH_OPTS, '') + '</div></div>' +
     '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, []) + '</div></div>' +
     '<div class="fg"><label class="fl">参加応募のきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('rsn_' + i, RSN_OPTS, []) + '</div></div>';
+  var deadlineLine = ev.closingDate ? '<div class="ev-deadline">募集締切：' + ev.closingDate + '</div>' : '<div class="ev-deadline">常時募集中</div>';
   return '<div class="ev-wrap">' +
     '<label class="ev-opt">' +
     evCheckbox +
     '<div>' +
       '<div class="ev-name">' + h(ev.name) + appliedBadge + '</div>' +
-      '<div class="ev-meta">' + (coachLine || '') + '<span>' + dateLine + '</span>' + (venueLine || '') + '</div>' +
+      '<div class="ev-meta">' + (coachLine || '') + dateLine + (venueLine || '') + (channelLine || '') + '</div>' +
       descLine +
-      '<div class="ev-deadline">募集締切：' + ev.closingDate + '</div>' +
+      deadlineLine +
     '</div></label>' +
     '<div id="ev_detail_' + i + '" class="ev-detail" style="display:none">' + perEvQ + '</div>' +
   '</div>';
