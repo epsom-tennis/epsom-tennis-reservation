@@ -97,7 +97,7 @@ function getLiffEventsJson(userId) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const filtered = getAllEvents()
-      .filter(ev => (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today));
+      .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today));
 
     // 応募済みシート名のセットを構築
     const appliedSheets = new Set();
@@ -173,6 +173,7 @@ function getEventsData() {
       coachName:   ev.coachName   || '',
       description: ev.description || '',
       appCount, winCount, loseCount, sentCount, pendingCount,
+      status: ev.status || '',
     };
   });
 }
@@ -436,6 +437,26 @@ function getMemberHistory(userId) {
   } catch (err) {
     Logger.log('getMemberHistory error: ' + err.toString());
     return { success: false, error: err.toString() };
+  }
+}
+
+// イベントの公開状態を切り替える（停止 ↔ 公開）
+function toggleEventStatus(appSheetName) {
+  try {
+    const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+    const configSheet = ss.getSheetByName(SHEET.CONFIG);
+    if (!configSheet) return { success: false, error: '設定シートが見つかりません。' };
+    const data = configSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][3]).trim() === appSheetName) {
+        const isStopped = String(data[i][13] || '').trim() === '停止';
+        configSheet.getRange(i + 1, 14).setValue(isStopped ? '' : '停止');
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'イベントが見つかりません。' };
+  } catch (e) {
+    return { success: false, error: e.toString() };
   }
 }
 
@@ -745,19 +766,35 @@ function getDashboardHtml() {
 'var detail=(ev.coachName?"<div class=\'text-muted small\'>👤 "+ev.coachName+"</div>":"")+' +
 '(ev.eventTime?"<div class=\'text-muted small\'>🕐 "+ev.eventTime+"</div>":"")+' +
 '(ev.venue?"<div class=\'text-muted small\'>📍 "+ev.venue+"</div>":"");' +
-'var copyBtn=dashConfig.liffId?"<div class=\'mt-2\'><button class=\'btn btn-sm btn-outline-success py-0 px-2\' onclick=\'copyLiffUrl("+idx+",event)\'>🔗 応募リンクをコピー</button></div>":"";' +
-'div.innerHTML="<div class=\'card event-card h-100 border\' onclick=\'selectEvent("+idx+")\'>"+' +
+'var isStopped=ev.status==="停止";' +
+'var statusBadge=isStopped?"<span class=\'badge bg-danger ms-1 align-middle\' style=\'font-size:10px\'>停止中</span>":"";' +
+'var toggleBtn="<button class=\'btn btn-sm "+(isStopped?"btn-outline-success":"btn-outline-danger")+" py-0 px-2\' onclick=\'doToggleStatus("+idx+",event)\'>"+(isStopped?"▶ 再開":"⏸ 停止")+"</button>";' +
+'var copyBtn=dashConfig.liffId?"<button class=\'btn btn-sm btn-outline-success py-0 px-2\' onclick=\'copyLiffUrl("+idx+",event)\'>🔗 リンクコピー</button>":"";' +
+'var btns="<div class=\'mt-2 d-flex gap-1\'>"+toggleBtn+(copyBtn?copyBtn:"")+"</div>";' +
+'div.innerHTML="<div class=\'card event-card h-100 border\' style=\'"+(isStopped?"opacity:0.55":"")+"\'onclick=\'selectEvent("+idx+")\'>"+' +
 '"<div class=\'card-body py-2\'>"+' +
-'"<div class=\'fw-bold mb-1\'>"+ev.name+badge+"</div>"+' +
-'"<div class=\'text-muted small\'>"+(ev.openingDate?"応募開始: "+ev.openingDate+" / ":"")+"開催: "+ev.eventDate+" / 締切: "+ev.closingDate+"</div>"+' +
+'"<div class=\'fw-bold mb-1\'>"+ev.name+badge+statusBadge+"</div>"+' +
+'"<div class=\'text-muted small\'>"+(ev.openingDate?"応募開始: "+ev.openingDate+" / ":"")+(ev.eventDate?"開催: "+ev.eventDate+" / ":"")+"締切: "+(ev.closingDate||"常時")+"</div>"+' +
 'detail+' +
 '"<div class=\'small mt-1\'>応募: "+ev.appCount+"名 ／ 当選: "+ev.winCount+"名 ／ 落選: "+ev.loseCount+"名</div>"+' +
-'copyBtn+' +
+'btns+' +
 '"</div></div>";' +
 'el.appendChild(div);' +
 'var opt=document.createElement("option");' +
 'opt.value=idx;opt.textContent=ev.name;sel.appendChild(opt);' +
 '});' +
+'}' +
+
+'function doToggleStatus(idx,e){' +
+'e.stopPropagation();' +
+'var ev=eventsData[idx];' +
+'var isStopped=ev.status==="停止";' +
+'var msg=isStopped?"「"+ev.name+"」を再開しますか？\n\nLIFFフォームに再表示されます。":"「"+ev.name+"」を停止しますか？\n\nLIFFフォームから非表示になります。";' +
+'if(!confirm(msg))return;' +
+'google.script.run' +
+'.withSuccessHandler(function(r){if(r.success){loadEvents();}else{alert("エラー: "+r.error);}})' +
+'.withFailureHandler(function(e){alert("エラー: "+e.message);})' +
+'.toggleEventStatus(ev.appSheetName);' +
 '}' +
 
 'function copyLiffUrl(idx,e){' +

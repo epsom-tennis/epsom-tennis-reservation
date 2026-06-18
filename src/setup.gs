@@ -65,6 +65,9 @@ function setupSpreadsheet() {
   if (configSheet.getLastRow() > 0 && !configSheet.getRange(1, 13).getValue()) {
     configSheet.getRange(1, 13).setValue('チャンネルURL');
   }
+  if (configSheet.getLastRow() > 0 && !configSheet.getRange(1, 14).getValue()) {
+    configSheet.getRange(1, 14).setValue('状態');
+  }
 
   // アクション履歴シート
   let actionSheet = ss.getSheetByName(SHEET.ACTION_LOG);
@@ -266,7 +269,8 @@ function addEventTypeHeader() {
   if (!configSheet.getRange(1, 11).getValue()) configSheet.getRange(1, 11).setValue('応募開始日');
   if (!configSheet.getRange(1, 12).getValue()) configSheet.getRange(1, 12).setValue('イベント種別');
   if (!configSheet.getRange(1, 13).getValue()) configSheet.getRange(1, 13).setValue('チャンネルURL');
-  SpreadsheetApp.getUi().alert('完了！\nL列：イベント種別（オンライン/オフライン）\nM列：チャンネルURL\nを追加しました。');
+  if (!configSheet.getRange(1, 14).getValue()) configSheet.getRange(1, 14).setValue('状態');
+  SpreadsheetApp.getUi().alert('完了！\nL列：イベント種別\nM列：チャンネルURL\nN列：状態\nを追加しました。');
 }
 
 // システム診断（テスト用）：シート存在確認・スクリプトプロパティ確認・実データ確認

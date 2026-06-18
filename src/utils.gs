@@ -47,10 +47,11 @@ function getAllEvents() {
     const openingDate  = data[i][10] ? new Date(data[i][10]) : null;  // K列：応募開始日
     const eventType    = String(data[i][11] || 'オフライン').trim();    // L列：イベント種別
     const channelUrl   = String(data[i][12] || '').trim();             // M列：チャンネルURL
+    const status       = String(data[i][13] || '').trim();             // N列：状態（停止/空=公開）
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
-    events.push({ name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType, channelUrl });
+    events.push({ name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType, channelUrl, status });
   }
   return events;
 }
