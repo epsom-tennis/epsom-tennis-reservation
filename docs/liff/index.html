@@ -448,8 +448,11 @@ function buildSingleEventHtml(ev, i) {
   var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
   var dateLine  = ev.eventDate ? '<span>📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '') + '</span>' : '';
   var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
-  var channelLine = (isOnline && ev.channelUrl)
-    ? '<span>🔗 <a href="' + h(ev.channelUrl) + '" target="_blank" style="color:#06c755">チャンネルを見る</a></span>'
+  var safeChannelUrl = (function(u) {
+    try { var p = new URL(u); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : ''; } catch(e) { return ''; }
+  })(ev.channelUrl || '');
+  var channelLine = (isOnline && safeChannelUrl)
+    ? '<span>🔗 <a href="' + h(safeChannelUrl) + '" target="_blank" rel="noopener noreferrer" style="color:#06c755">チャンネルを見る</a></span>'
     : '';
   var descLine  = ev.description ? '<div class="ev-desc">' + h(ev.description) + '</div>' : '';
   var appliedBadge = ev.alreadyApplied
