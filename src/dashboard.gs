@@ -438,6 +438,11 @@ function getMemberHistory(userId) {
   }
 }
 
+// ダッシュボード設定（LIFF IDなど）を返す
+function getDashboardConfig() {
+  return { liffId: getProp('LIFF_ID') || '' };
+}
+
 // ===== HTMLの生成 =====
 
 function getDashboardHtml() {
@@ -635,8 +640,14 @@ function getDashboardHtml() {
 'var mTargetIds=[];' +
 'var membersLoaded=false;' +
 'var allApplicantsData=[];' +
+'var dashConfig={};' +
 
-'window.onload=function(){loadEvents();};' +
+'window.onload=function(){' +
+'google.script.run' +
+'.withSuccessHandler(function(c){dashConfig=c;loadEvents();})' +
+'.withFailureHandler(function(){loadEvents();})' +
+'.getDashboardConfig();' +
+'};' +
 
 'function showNewEventModal(){document.getElementById("newEventModal").style.display="";}' +
 'function hideNewEventModal(){document.getElementById("newEventModal").style.display="none";document.getElementById("ne_result").textContent="";}' +
@@ -694,17 +705,27 @@ function getDashboardHtml() {
 'var detail=(ev.coachName?"<div class=\'text-muted small\'>👤 "+ev.coachName+"</div>":"")+' +
 '(ev.eventTime?"<div class=\'text-muted small\'>🕐 "+ev.eventTime+"</div>":"")+' +
 '(ev.venue?"<div class=\'text-muted small\'>📍 "+ev.venue+"</div>":"");' +
+'var copyBtn=dashConfig.liffId?"<div class=\'mt-2\'><button class=\'btn btn-sm btn-outline-success py-0 px-2\' onclick=\'copyLiffUrl("+idx+",event)\'>🔗 応募リンクをコピー</button></div>":"";' +
 'div.innerHTML="<div class=\'card event-card h-100 border\' onclick=\'selectEvent("+idx+")\'>"+' +
 '"<div class=\'card-body py-2\'>"+' +
 '"<div class=\'fw-bold mb-1\'>"+ev.name+badge+"</div>"+' +
 '"<div class=\'text-muted small\'>"+(ev.openingDate?"応募開始: "+ev.openingDate+" / ":"")+"開催: "+ev.eventDate+" / 締切: "+ev.closingDate+"</div>"+' +
 'detail+' +
 '"<div class=\'small mt-1\'>応募: "+ev.appCount+"名 ／ 当選: "+ev.winCount+"名 ／ 落選: "+ev.loseCount+"名</div>"+' +
+'copyBtn+' +
 '"</div></div>";' +
 'el.appendChild(div);' +
 'var opt=document.createElement("option");' +
 'opt.value=idx;opt.textContent=ev.name;sel.appendChild(opt);' +
 '});' +
+'}' +
+
+'function copyLiffUrl(idx,e){' +
+'e.stopPropagation();' +
+'if(!dashConfig.liffId){alert("LIFF_IDが未設定です。スクリプトプロパティを確認してください。");return;}' +
+'var url="https://liff.line.me/"+dashConfig.liffId+"?event="+encodeURIComponent(eventsData[idx].name);' +
+'if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){alert("コピーしました！\\n\\n"+url);});}' +
+'else{prompt("このURLをコピーしてください:",url);}' +
 '}' +
 
 'function selectEvent(idx){' +

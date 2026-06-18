@@ -382,6 +382,33 @@ function renderEntryForm() {
   updateSubmitBtnLabel();
   updateOnlineFields();
   updateConsentSections();
+  applyUrlEventPreselect();
+}
+
+function getLiffUrlParam(key) {
+  try {
+    var direct = new URLSearchParams(location.search).get(key);
+    if (direct) return decodeURIComponent(direct);
+    var state = new URLSearchParams(location.search).get('liff.state');
+    if (state) return new URLSearchParams(decodeURIComponent(state)).get(key);
+  } catch(e) {}
+  return null;
+}
+
+function applyUrlEventPreselect() {
+  var evName = getLiffUrlParam('event');
+  if (!evName) return;
+  for (var i = 0; i < eventsData.length; i++) {
+    if (eventsData[i].name === evName) {
+      var cb = document.querySelector('input[name="ev"][value="' + i + '"]');
+      if (cb && !cb.checked) {
+        cb.checked = true;
+        onEventToggle(i);
+        cb.closest('.ev-opt') && cb.closest('.ev-opt').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      break;
+    }
+  }
 }
 
 // ========== プロフィールカードHTML ==========
