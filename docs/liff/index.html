@@ -740,12 +740,13 @@ function doSubmit() {
   gerr.style.display = 'none';
 
   var errs = [];
-  var mainP;
-  if (profileAccordionOpen) {
-    mainP = collectParticipant(1);
+  var mainP = collectParticipant(1);
+  var accordionVisible = (function() {
+    var panel = document.getElementById('profileAccordion');
+    return panel && panel.style.display !== 'none';
+  })();
+  if (accordionVisible) {
     validateParticipant(mainP, 1, errs);
-  } else {
-    mainP = memberDataToParticipant(memberData);
   }
 
   var additionals = [];
