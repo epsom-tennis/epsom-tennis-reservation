@@ -503,6 +503,8 @@ function getDashboardHtml() {
 '<input type="text" class="form-control" id="ne_coach" placeholder="山田 コーチ"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント内容</label>' +
 '<textarea class="form-control" id="ne_desc" rows="3" placeholder="イベントの説明・内容を入力"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">イベント種別</label>' +
+'<select class="form-select" id="ne_type"><option value="オフライン">オフライン</option><option value="オンライン">オンライン</option></select></div>' +
 '</div>' +
 '<div class="d-flex gap-2 mt-3 align-items-center">' +
 '<button class="btn btn-success" onclick="submitNewEvent()">登録する</button>' +
@@ -649,6 +651,7 @@ function getDashboardHtml() {
 'var venue=document.getElementById("ne_venue").value.trim();' +
 'var coach=document.getElementById("ne_coach").value.trim();' +
 'var desc=document.getElementById("ne_desc").value.trim();' +
+'var evType=document.getElementById("ne_type").value;' +
 'if(!name||!date||!closing){alert("イベント名・開催日・募集終了日は必須です。");return;}' +
 'var res=document.getElementById("ne_result");res.textContent="登録中...";' +
 'google.script.run' +
@@ -657,7 +660,7 @@ function getDashboardHtml() {
 'else{res.textContent="❌ "+r.error;}' +
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
-'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc});' +
+'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,eventType:evType});' +
 '}' +
 
 'function showTab(t){' +

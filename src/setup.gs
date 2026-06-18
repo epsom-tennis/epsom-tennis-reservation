@@ -85,7 +85,7 @@ function setupSpreadsheet() {
 // ダッシュボードからイベントを新規作成する（google.script.runから呼び出す）
 function createNewEvent(data) {
   try {
-    const { name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description } = data;
+    const { name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, eventType } = data;
     if (!name || !eventDate || !closingDate) {
       return { success: false, error: 'イベント名・開催日・募集終了日は必須です。' };
     }
@@ -128,7 +128,7 @@ function createNewEvent(data) {
     // 設定シートに行を追加（G〜K列に詳細情報）
     configSheet.appendRow([
       name, evDateObj, closingDateObj, appSheetName, '', '',
-      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '',
+      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン',
     ]);
 
     return {

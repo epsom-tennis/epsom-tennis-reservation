@@ -399,7 +399,7 @@ function buildEventsHtml() {
   var offline = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') !== 'オンライン'; });
   var online  = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') === 'オンライン'; });
   return buildEventGroupHtml('📍 オフラインイベント', offline) +
-         buildEventGroupHtml('💻 オンラインイベント（ビデオ相談）', online);
+         buildEventGroupHtml('💻 オンラインイベント', online);
 }
 
 function buildEventGroupHtml(label, events) {
