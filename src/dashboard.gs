@@ -490,8 +490,9 @@ function getDashboardHtml() {
 '</head>' +
 '<body>' +
 '<div class="container-fluid py-3 px-4">' +
-'<div class="d-flex align-items-center mb-3">' +
+'<div class="d-flex align-items-center mb-3 gap-2">' +
 '<h5 class="mb-0 me-3">📋 イベント管理ダッシュボード</h5>' +
+'<button class="btn btn-sm btn-outline-secondary ms-auto" onclick="showLiffLinks()">🔗 LIFFリンク一覧</button>' +
 '<div id="spinner" class="spinner-border spinner-border-sm text-primary"></div>' +
 '</div>' +
 
@@ -785,6 +786,28 @@ function getDashboardHtml() {
 '});' +
 '}' +
 
+'function showLiffLinks(){' +
+'if(!dashConfig.liffId){alert("LIFF_IDが未設定です。スクリプトプロパティを確認してください。");return;}' +
+'var base="https://liff.line.me/"+dashConfig.liffId;' +
+'var links=[' +
+'{label:"📝 プロフィール登録",desc:"初回登録専用。既存会員が開いても登録フォームが表示されます。",url:base+"?page=register"},' +
+'{label:"✏️ プロフィール修正",desc:"既存会員向け。プロフィール編集欄が開いた状態で表示されます。",url:base+"?page=profile"},' +
+'{label:"📍 オフライン応募",desc:"オフラインイベントのみ表示されます。",url:base+"?type=offline"},' +
+'{label:"💻 オンライン応募",desc:"オンラインイベントのみ表示されます。",url:base+"?type=online"},' +
+'];' +
+'var html=links.map(function(l){' +
+'return "<div class=\'mb-3\'><div class=\'fw-bold mb-1\'>"+l.label+"</div><div class=\'text-muted small mb-1\'>"+l.desc+"</div><div class=\'d-flex gap-2\'><input type=\'text\' class=\'form-control form-control-sm\' value=\'"+l.url+"\' readonly onclick=\'this.select()\'><button class=\'btn btn-sm btn-outline-primary flex-shrink-0\' onclick=\'cpLink(this,\""+encodeURIComponent(l.url)+"\")\'>コピー</button></div></div>";' +
+'}).join("");' +
+'document.getElementById("liffLinksBody").innerHTML=html;' +
+'document.getElementById("liffLinksModal").style.display="flex";' +
+'}' +
+'function hideLiffLinks(){document.getElementById("liffLinksModal").style.display="none";}' +
+'function cpLink(btn,encodedUrl){' +
+'var url=decodeURIComponent(encodedUrl);' +
+'if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){var t=btn.textContent;btn.textContent="✅ コピー済";setTimeout(function(){btn.textContent=t;},1500);});}' +
+'else{prompt("コピーしてください:",url);}' +
+'}' +
+
 'function doToggleStatus(idx,e){' +
 'e.stopPropagation();' +
 'var ev=eventsData[idx];' +
@@ -1073,5 +1096,15 @@ function getDashboardHtml() {
 'function closeMemberHistory(){document.getElementById("memberHistoryOverlay").style.display="none";}' +
 
 '</script>' +
+'<!-- LIFFリンク一覧モーダル -->' +
+'<div id="liffLinksModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;padding:16px">' +
+'<div class="card p-4" style="max-width:600px;width:100%">' +
+'<div class="d-flex justify-content-between align-items-center mb-3">' +
+'<h6 class="mb-0">🔗 LIFFリンク一覧</h6>' +
+'<button class="btn btn-sm btn-outline-secondary" onclick="hideLiffLinks()">✕ 閉じる</button>' +
+'</div>' +
+'<p class="text-muted small mb-3">各リンクをコピーしてLINEで配布してください。</p>' +
+'<div id="liffLinksBody"></div>' +
+'</div></div>' +
 '</body></html>';
 }
