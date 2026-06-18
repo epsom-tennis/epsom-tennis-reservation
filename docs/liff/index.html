@@ -684,8 +684,8 @@ function doSubmitProfile() {
 
 // ========== 初回登録後の画面遷移 ==========
 
-function showPostRegistration(mainP, additionals) {
-  memberData = {
+function buildMemberDataFromParticipant_(mainP, additionals) {
+  return {
     name: (mainP.familyName + ' ' + mainP.givenName).trim(),
     furigana: (mainP.familyNameKana + ' ' + mainP.givenNameKana).trim(),
     age: mainP.age, gender: mainP.gender, tennisLevel: mainP.tennisLevel,
@@ -705,6 +705,10 @@ function showPostRegistration(mainP, additionals) {
       };
     }),
   };
+}
+
+function showPostRegistration(mainP, additionals) {
+  memberData = buildMemberDataFromParticipant_(mainP, additionals);
 
   document.getElementById('fw').style.display = 'none';
   document.getElementById('stitle').textContent = '登録完了！';
@@ -806,6 +810,7 @@ function doSubmit() {
   .then(function(r){ return r.json(); })
   .then(function(res) {
     if (res.success) {
+      memberData = buildMemberDataFromParticipant_(mainP, additionals);
       document.getElementById('fw').style.display = 'none';
       var applied = res.appliedEvents || [];
       document.getElementById('stitle').textContent = '応募を受け付けました！';
