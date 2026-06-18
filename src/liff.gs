@@ -145,10 +145,17 @@ function submitLiffApplication(data) {
         const evCoach  = ev.coachKnowledge || data.coachKnowledge || '';
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
         const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
-        resultSheet.appendRow([
-          fullName, pUserId, '', '', '',
-          evCoach, evSrcStr, evRsnStr, new Date(),
-        ]);
+        const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
+        resultSheet.appendRow(
+          [fullName, pUserId, '', '', '', evCoach, evSrcStr, evRsnStr, new Date()]
+          .concat(isOnline ? [
+            data.onlineBroadcastName || '',
+            data.onlineConcern       || '',
+            data.onlineVideoUrl      || '',
+            data.onlinePhoneConsult  || '',
+            data.onlineConsultPhone  || '',
+          ] : [])
+        );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
         pHasNewApply = true;
         if (!appliedNames.includes(ev.name)) appliedNames.push(ev.name);

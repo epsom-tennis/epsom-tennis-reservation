@@ -121,7 +121,11 @@ function createNewEvent(data) {
     let resultSheet = ss.getSheetByName(resultSheetName);
     if (!resultSheet) {
       resultSheet = ss.insertSheet(resultSheetName);
-      resultSheet.appendRow(['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認']);
+      const baseHeaders = ['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認'];
+      const onlineHeaders = (eventType || 'オフライン') === 'オンライン'
+        ? ['配信名（ひらがな）', 'お悩み内容', '動画URL', '電話相談希望', '電話番号']
+        : [];
+      resultSheet.appendRow(baseHeaders.concat(onlineHeaders));
       resultSheet.setFrozenRows(1);
     }
 
