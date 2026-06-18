@@ -57,6 +57,11 @@ function setupSpreadsheet() {
     configSheet.getRange(1, 9).setValue('コーチ名');
     configSheet.getRange(1, 10).setValue('イベント内容');
   }
+  // 設定シートのK〜L列ヘッダーを追加（応募開始日・イベント種別）
+  if (configSheet.getLastRow() > 0 && !configSheet.getRange(1, 12).getValue()) {
+    if (!configSheet.getRange(1, 11).getValue()) configSheet.getRange(1, 11).setValue('応募開始日');
+    configSheet.getRange(1, 12).setValue('イベント種別');
+  }
 
   // アクション履歴シート
   let actionSheet = ss.getSheetByName(SHEET.ACTION_LOG);
@@ -234,6 +239,16 @@ function setupNewEvent() {
     `onFormSubmit をスプレッドシートの「フォーム送信時」として設定してください。\n` +
     `2つ目以降のイベントは既存のトリガーが自動で対応します。`
   );
+}
+
+// 設定シートにイベント種別列（L列）のヘッダーを追加する。GASエディタから一度だけ手動実行。
+function addEventTypeHeader() {
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  const configSheet = ss.getSheetByName(SHEET.CONFIG);
+  if (!configSheet) { SpreadsheetApp.getUi().alert('設定シートが見つかりません。'); return; }
+  if (!configSheet.getRange(1, 11).getValue()) configSheet.getRange(1, 11).setValue('応募開始日');
+  configSheet.getRange(1, 12).setValue('イベント種別');
+  SpreadsheetApp.getUi().alert('完了！設定シートのL列に「イベント種別」を追加しました。\n\nオンラインイベントの行に「オンライン」と入力してください。\n（空欄はオフライン扱い）');
 }
 
 // システム診断（テスト用）：シート存在確認・スクリプトプロパティ確認・実データ確認
