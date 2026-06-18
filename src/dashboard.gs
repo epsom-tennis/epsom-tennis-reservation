@@ -126,6 +126,7 @@ function getLiffEventsJson(userId) {
       venue:           ev.venue       || '',
       coachName:       ev.coachName   || '',
       description:     ev.description || '',
+      eventType:       ev.eventType   || 'オフライン',
       alreadyApplied:  appliedSheets.has(ev.resultSheetName),
     }));
   } catch (err) {

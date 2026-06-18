@@ -25,7 +25,8 @@ function getSheet(name) {
 }
 
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
-// 戻り値: [{ name, eventDate, closingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description }, ...]
+// 戻り値: [{ name, eventDate, closingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType }, ...]
+// L列(eventType): "オフライン" または "オンライン"（空欄の場合は"オフライン"扱い）
 function getAllEvents() {
   const sheet = getSheet(SHEET.CONFIG);
   if (!sheet) return [];
@@ -44,10 +45,11 @@ function getAllEvents() {
     const coachName    = String(data[i][8] || '').trim();  // I列：コーチ名
     const description  = String(data[i][9] || '').trim();  // J列：イベント内容
     const openingDate  = data[i][10] ? new Date(data[i][10]) : null;  // K列：応募開始日
+    const eventType    = String(data[i][11] || 'オフライン').trim();    // L列：イベント種別
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
-    events.push({ name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description });
+    events.push({ name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType });
   }
   return events;
 }

@@ -368,32 +368,48 @@ function buildProfileCardHtml(m) {
 // ========== イベント選択HTML ==========
 
 function buildEventsHtml() {
-  return eventsData.map(function(ev, i) {
-    var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
-    var dateLine  = '📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '');
-    var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
-    var descLine  = ev.description ? '<div class="ev-desc">' + h(ev.description) + '</div>' : '';
-    var appliedBadge = ev.alreadyApplied
-      ? ' <span style="background:#198754;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">応募済み</span>'
-      : '';
-    var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')">';
-    var perEvQ =
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">コーチのレッスンについて<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, COACH_OPTS, '') + '</div></div>' +
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, []) + '</div></div>' +
-      '<div class="fg"><label class="fl">参加応募のきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('rsn_' + i, RSN_OPTS, []) + '</div></div>';
-    return '<div class="ev-wrap">' +
-      '<label class="ev-opt">' +
-      evCheckbox +
-      '<div>' +
-        '<div class="ev-name">' + h(ev.name) + appliedBadge + '</div>' +
-        '<div class="ev-meta">' + (coachLine || '') + '<span>' + dateLine + '</span>' + (venueLine || '') + '</div>' +
-        descLine +
-        '<div class="ev-deadline">募集締切：' + ev.closingDate + '</div>' +
-      '</div></label>' +
-      '<div id="ev_detail_' + i + '" class="ev-detail" style="display:none">' + perEvQ + '</div>' +
-    '</div>';
-  }).join('');
+  var offline = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') !== 'オンライン'; });
+  var online  = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') === 'オンライン'; });
+  return buildEventGroupHtml('📍 オフラインイベント', offline) +
+         buildEventGroupHtml('💻 オンラインイベント（ビデオ相談）', online);
+}
+
+function buildEventGroupHtml(label, events) {
+  var header = '<div style="font-size:13px;font-weight:bold;color:#444;padding:8px 2px 8px;border-bottom:1px solid #e8e8e8;margin-bottom:10px">' + label + '</div>';
+  if (events.length === 0) {
+    return '<div style="margin-bottom:14px">' + header +
+      '<p style="color:#aaa;font-size:13px;padding:2px 2px 4px;text-align:center">現在募集中のイベントはございません。</p></div>';
+  }
+  return '<div style="margin-bottom:14px">' + header +
+    events.map(function(ev) { return buildSingleEventHtml(ev, eventsData.indexOf(ev)); }).join('') +
+  '</div>';
+}
+
+function buildSingleEventHtml(ev, i) {
+  var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
+  var dateLine  = '📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '');
+  var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
+  var descLine  = ev.description ? '<div class="ev-desc">' + h(ev.description) + '</div>' : '';
+  var appliedBadge = ev.alreadyApplied
+    ? ' <span style="background:#198754;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">応募済み</span>'
+    : '';
+  var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')">';
+  var perEvQ =
+    '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
+    '<div class="fg" style="margin-bottom:12px"><label class="fl">コーチのレッスンについて<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, COACH_OPTS, '') + '</div></div>' +
+    '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, []) + '</div></div>' +
+    '<div class="fg"><label class="fl">参加応募のきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('rsn_' + i, RSN_OPTS, []) + '</div></div>';
+  return '<div class="ev-wrap">' +
+    '<label class="ev-opt">' +
+    evCheckbox +
+    '<div>' +
+      '<div class="ev-name">' + h(ev.name) + appliedBadge + '</div>' +
+      '<div class="ev-meta">' + (coachLine || '') + '<span>' + dateLine + '</span>' + (venueLine || '') + '</div>' +
+      descLine +
+      '<div class="ev-deadline">募集締切：' + ev.closingDate + '</div>' +
+    '</div></label>' +
+    '<div id="ev_detail_' + i + '" class="ev-detail" style="display:none">' + perEvQ + '</div>' +
+  '</div>';
 }
 
 // ========== アコーディオン切替 ==========
