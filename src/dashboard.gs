@@ -440,6 +440,32 @@ function getMemberHistory(userId) {
   }
 }
 
+// LIFFリンク一覧をSTAFF_USER_IDのLINEにpush送信する
+function sendLiffLinksToStaff() {
+  const staffUserId = getProp('STAFF_USER_ID');
+  if (!staffUserId) return { success: false, error: 'STAFF_USER_IDが未設定です。スクリプトプロパティを確認してください。' };
+  const liffId = getProp('LIFF_ID');
+  if (!liffId) return { success: false, error: 'LIFF_IDが未設定です。' };
+  const base = 'https://liff.line.me/' + liffId;
+  const text = [
+    '🔗 LIFFリンク一覧',
+    '',
+    '📝 プロフィール登録',
+    base + '?page=register',
+    '',
+    '✏️ プロフィール修正',
+    base + '?page=profile',
+    '',
+    '📍 オフライン応募',
+    base + '?type=offline',
+    '',
+    '💻 オンライン応募',
+    base + '?type=online',
+  ].join('\n');
+  pushMessage(staffUserId, text);
+  return { success: true };
+}
+
 // イベントの公開状態を切り替える（停止 ↔ 公開）
 function toggleEventStatus(appSheetName) {
   try {
@@ -801,6 +827,17 @@ function getDashboardHtml() {
 'document.getElementById("liffLinksBody").innerHTML=html;' +
 'document.getElementById("liffLinksModal").style.display="flex";' +
 '}' +
+'function sendLiffLinksLine(){' +
+'var btn=document.getElementById("sendLiffLinksBtn");' +
+'btn.disabled=true;btn.textContent="送信中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r){' +
+'if(r.success){btn.textContent="✅ 送信しました！";setTimeout(function(){btn.textContent="📨 LINEに送る";btn.disabled=false;},3000);}' +
+'else{alert("エラー: "+r.error);btn.textContent="📨 LINEに送る";btn.disabled=false;}' +
+'})' +
+'.withFailureHandler(function(e){alert("エラー: "+e.message);btn.textContent="📨 LINEに送る";btn.disabled=false;})' +
+'.sendLiffLinksToStaff();' +
+'}' +
 'function hideLiffLinks(){document.getElementById("liffLinksModal").style.display="none";}' +
 'function cpLink(btn,encodedUrl){' +
 'var url=decodeURIComponent(encodedUrl);' +
@@ -1103,8 +1140,11 @@ function getDashboardHtml() {
 '<h6 class="mb-0">🔗 LIFFリンク一覧</h6>' +
 '<button class="btn btn-sm btn-outline-secondary" onclick="hideLiffLinks()">✕ 閉じる</button>' +
 '</div>' +
-'<p class="text-muted small mb-3">各リンクをコピーしてLINEで配布してください。</p>' +
+'<p class="text-muted small mb-3">各リンクをコピーして配布するか、LINEに一括送信できます。</p>' +
 '<div id="liffLinksBody"></div>' +
+'<div class="border-top pt-3 mt-2">' +
+'<button id="sendLiffLinksBtn" class="btn btn-success w-100" onclick="sendLiffLinksLine()">📨 LINEに送る（STAFF_USER_ID宛）</button>' +
+'</div>' +
 '</div></div>' +
 '</body></html>';
 }
