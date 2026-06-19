@@ -798,7 +798,7 @@ function getDashboardHtml() {
 'var toggleBtn="<button class=\'btn btn-sm "+(isStopped?"btn-outline-success":"btn-outline-danger")+" py-0 px-2\' onclick=\'doToggleStatus("+idx+",event)\'>"+(isStopped?"▶ 再開":"⏸ 停止")+"</button>";' +
 'var copyBtn=dashConfig.liffId?"<button class=\'btn btn-sm btn-outline-success py-0 px-2\' onclick=\'copyLiffUrl("+idx+",event)\'>🔗 リンクコピー</button>":"";' +
 'var btns="<div class=\'mt-2 d-flex gap-1\'>"+toggleBtn+(copyBtn?copyBtn:"")+"</div>";' +
-'div.innerHTML="<div class=\'card event-card h-100 border\' style=\'"+(isStopped?"opacity:0.55":"")+"\'onclick=\'selectEvent("+idx+")\'>"+' +
+'div.innerHTML="<div class=\'card event-card h-100 border\' style=\'"+(isStopped?"opacity:0.55":"")+"\'  onclick=\'selectEvent("+idx+")\'>"+' +
 '"<div class=\'card-body py-2\'>"+' +
 '"<div class=\'fw-bold mb-1\'>"+ev.name+badge+statusBadge+"</div>"+' +
 '"<div class=\'text-muted small\'>"+(ev.openingDate?"応募開始: "+ev.openingDate+" / ":"")+(ev.eventDate?"開催: "+ev.eventDate+" / ":"")+"締切: "+(ev.closingDate||"常時")+"</div>"+' +
