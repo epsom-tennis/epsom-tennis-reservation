@@ -776,7 +776,10 @@ function getDashboardHtml() {
 
 'function loadEvents(){' +
 'spin(true);' +
-'google.script.run.withSuccessHandler(function(ev){spin(false);renderEvents(ev);}).withFailureHandler(function(e){spin(false);alert("エラー: "+e.message);}).getEventsData();' +
+'google.script.run' +
+'.withSuccessHandler(function(ev){spin(false);renderEvents(ev);})' +
+'.withFailureHandler(function(e){spin(false);document.getElementById("eventList").innerHTML="<div class=\'col\'><div class=\'alert alert-danger\'>⚠ GASエラー: "+(e&&e.message?e.message:JSON.stringify(e))+"</div></div>";})' +
+'.getEventsData();' +
 '}' +
 
 'function renderEvents(events){' +
@@ -822,7 +825,7 @@ function getDashboardHtml() {
 '{label:"💻 オンライン応募",desc:"オンラインイベントのみ表示されます。",url:base+"?type=online"},' +
 '];' +
 'var html=links.map(function(l){' +
-'return "<div class=\'mb-3\'><div class=\'fw-bold mb-1\'>"+l.label+"</div><div class=\'text-muted small mb-1\'>"+l.desc+"</div><div class=\'d-flex gap-2\'><input type=\'text\' class=\'form-control form-control-sm\' value=\'"+l.url+"\' readonly onclick=\'this.select()\'><button class=\'btn btn-sm btn-outline-primary flex-shrink-0\' onclick=\'cpLink(this,\""+encodeURIComponent(l.url)+"\")\'>コピー</button></div></div>";' +
+'return "<div class=\'mb-3\'><div class=\'fw-bold mb-1\'>"+l.label+"</div><div class=\'text-muted small mb-1\'>"+l.desc+"</div><div class=\'d-flex gap-2\'><input type=\'text\' class=\'form-control form-control-sm\' value=\'"+l.url+"\' readonly onclick=\'this.select()\'><button class=\'btn btn-sm btn-outline-primary flex-shrink-0\' data-url=\'"+l.url+"\' onclick=\'cpLink(this)\'>コピー</button></div></div>";' +
 '}).join("");' +
 'document.getElementById("liffLinksBody").innerHTML=html;' +
 'document.getElementById("liffLinksModal").style.display="flex";' +
@@ -839,8 +842,8 @@ function getDashboardHtml() {
 '.sendLiffLinksToStaff();' +
 '}' +
 'function hideLiffLinks(){document.getElementById("liffLinksModal").style.display="none";}' +
-'function cpLink(btn,encodedUrl){' +
-'var url=decodeURIComponent(encodedUrl);' +
+'function cpLink(btn){' +
+'var url=btn.getAttribute("data-url");' +
 'if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){var t=btn.textContent;btn.textContent="✅ コピー済";setTimeout(function(){btn.textContent=t;},1500);});}' +
 'else{prompt("コピーしてください:",url);}' +
 '}' +
@@ -849,7 +852,7 @@ function getDashboardHtml() {
 'e.stopPropagation();' +
 'var ev=eventsData[idx];' +
 'var isStopped=ev.status==="停止";' +
-'var msg=isStopped?"「"+ev.name+"」を再開しますか？\n\nLIFFフォームに再表示されます。":"「"+ev.name+"」を停止しますか？\n\nLIFFフォームから非表示になります。";' +
+'var msg=isStopped?"「"+ev.name+"」を再開しますか？\\n\\nLIFFフォームに再表示されます。":"「"+ev.name+"」を停止しますか？\\n\\nLIFFフォームから非表示になります。";' +
 'if(!confirm(msg))return;' +
 'google.script.run' +
 '.withSuccessHandler(function(r){if(r.success){loadEvents();}else{alert("エラー: "+r.error);}})' +
