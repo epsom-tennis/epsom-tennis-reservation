@@ -84,6 +84,8 @@ function submitLiffApplication(data) {
     const membersSheet = getSheet(SHEET.MEMBERS);
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
     const appliedNames = [];
+    const appliedOnlineNames = [];
+    const appliedOfflineNames = [];
     const appliedParticipantNames = []; // 新規応募した参加者のフルネーム
 
     // 主参加者 + 追加参加者をまとめて処理
@@ -158,7 +160,11 @@ function submitLiffApplication(data) {
         );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
         pHasNewApply = true;
-        if (!appliedNames.includes(ev.name)) appliedNames.push(ev.name);
+        if (!appliedNames.includes(ev.name)) {
+          appliedNames.push(ev.name);
+          if (isOnline) appliedOnlineNames.push(ev.name);
+          else appliedOfflineNames.push(ev.name);
+        }
       }
       // 1件でも新規応募があれば参加者名を記録
       if (pHasNewApply && fullName && !appliedParticipantNames.includes(fullName)) {
@@ -172,14 +178,39 @@ function submitLiffApplication(data) {
     }
 
     if (appliedNames.length > 0) {
-      const eventList = appliedNames.map(n => '・' + n).join('\n');
-      // 名前がある場合は「○○ 様、△△ 様の応募を受け付けました！」、ない場合は従来文
       const namesPart = appliedParticipantNames.length > 0
         ? appliedParticipantNames.map(n => n + ' 様').join('、') + 'の'
         : '';
-      pushMessage(data.userId,
-        `${namesPart}応募を受け付けました！\n\n応募イベント:\n${eventList}\n\n当落結果は後日このLINEでお知らせします。\nしばらくお待ちください。`
-      );
+      const msgParts = [`${namesPart}ご応募を受け付けました！`];
+
+      // オフラインイベント：当落通知あり
+      if (appliedOfflineNames.length > 0) {
+        msgParts.push(
+          '【オフラインイベント】\n' +
+          appliedOfflineNames.map(n => '・' + n).join('\n') +
+          '\n\n当落結果は後日このLINEでお知らせします。\nしばらくお待ちください。'
+        );
+      }
+
+      // オンライン相談：全員対応・相談詳細を確認
+      if (appliedOnlineNames.length > 0) {
+        const consultType = (data.onlineConsultType || '') === 'video' ? '動画' : '文章';
+        let onlinePart = '【オンライン相談】\n' +
+          appliedOnlineNames.map(n => '・' + n).join('\n') +
+          '\n\nご相談方法：' + consultType;
+        if ((data.onlineConsultType || '') === 'video') {
+          const phoneConsult = data.onlinePhoneConsult || '';
+          onlinePart += '\n電話相談：' + (phoneConsult || '未選択');
+          if (phoneConsult === '希望する' && data.onlineConsultPhone) {
+            onlinePart += '（' + data.onlineConsultPhone + '）';
+          }
+        }
+        onlinePart += '\n\nご相談内容を受け付けました。\n配信にてお答えしますので、お楽しみに！';
+        msgParts.push(onlinePart);
+      }
+
+      pushMessage(data.userId, msgParts.join('\n\n'));
+
       // 動画相談の場合はGoogleフォームURLを追加送信
       if ((data.onlineConsultType || '') === 'video') {
         const formUrl = getProp('VIDEO_CONSULT_FORM_URL');
