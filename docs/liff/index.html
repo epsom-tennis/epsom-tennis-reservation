@@ -840,47 +840,33 @@ function updateOnlineFields() {
         '<input type="text" id="onBroadcastName" placeholder="例：たろう">' +
       '</div>' +
       '<div class="fg">' +
-        '<label class="fl">お悩み内容<span class="req">*</span></label>' +
-        '<textarea id="onConcern" rows="5" placeholder="ご相談されたい内容をご記入ください"></textarea>' +
-      '</div>' +
-      '<div class="fg">' +
-        '<label class="fl">動画の提出（任意）</label>' +
-        '<div class="sub-note" style="margin-bottom:6px">Google Drive・iCloud等の共有リンクを貼り付けてください</div>' +
-        '<input type="url" id="onVideoUrl" placeholder="https://..." oninput="updatePhoneConsult()">' +
-      '</div>' +
-      '<div id="onPhoneConsultSection" style="display:none">' +
-        '<div class="fg">' +
-          '<label class="fl">電話でのご相談を希望されますか？<span class="req">*</span></label>' +
-          '<div class="rlist">' +
-            '<label class="opt"><input type="radio" name="onPhoneConsult" value="希望する" onchange="updateConsultPhone()"><span>希望する</span></label>' +
-            '<label class="opt"><input type="radio" name="onPhoneConsult" value="希望しない" onchange="updateConsultPhone()"><span>希望しない</span></label>' +
-          '</div>' +
+        '<label class="fl">ご相談方法<span class="req">*</span></label>' +
+        '<div class="rlist">' +
+          '<label class="opt"><input type="radio" name="onConsultType" value="text" onchange="updateConsultType()"><span>文章で相談する</span></label>' +
+          '<label class="opt"><input type="radio" name="onConsultType" value="video" onchange="updateConsultType()"><span>動画で相談する</span></label>' +
         '</div>' +
-        '<div id="onConsultPhoneSection" style="display:none" class="fg">' +
-          '<label class="fl">かけてほしい電話番号<span class="req">*</span></label>' +
-          '<input type="tel" id="onConsultPhone" placeholder="090-0000-0000">' +
+      '</div>' +
+      '<div id="onTextSection" style="display:none">' +
+        '<div class="fg">' +
+          '<label class="fl">お悩み内容<span class="req">*</span></label>' +
+          '<textarea id="onConcern" rows="5" placeholder="ご相談されたい内容をご記入ください"></textarea>' +
+        '</div>' +
+      '</div>' +
+      '<div id="onVideoSection" style="display:none">' +
+        '<div style="font-size:13px;color:#444;background:#f0fff6;border:1px solid #9de0b4;border-radius:8px;padding:12px;line-height:1.8">' +
+          '✅ 応募完了後、LINEにGoogleフォームのURLをお送りします。<br>フォームから動画の共有リンクをご提出ください。' +
         '</div>' +
       '</div>' +
     '</div>';
 }
 
-function updatePhoneConsult() {
-  var section = document.getElementById('onPhoneConsultSection');
-  if (!section) return;
-  var hasVideo = val('onVideoUrl').length > 0;
-  section.style.display = hasVideo ? '' : 'none';
-  if (!hasVideo) {
-    document.querySelectorAll('input[name="onPhoneConsult"]').forEach(function(r){ r.checked = false; });
-    var ps = document.getElementById('onConsultPhoneSection');
-    if (ps) ps.style.display = 'none';
-  }
-}
-
-function updateConsultPhone() {
-  var ps = document.getElementById('onConsultPhoneSection');
-  if (!ps) return;
-  var sel = document.querySelector('input[name="onPhoneConsult"]:checked');
-  ps.style.display = (sel && sel.value === '希望する') ? '' : 'none';
+function updateConsultType() {
+  var sel = document.querySelector('input[name="onConsultType"]:checked');
+  var type = sel ? sel.value : '';
+  var textSec = document.getElementById('onTextSection');
+  var videoSec = document.getElementById('onVideoSection');
+  if (textSec) textSec.style.display = type === 'text' ? '' : 'none';
+  if (videoSec) videoSec.style.display = type === 'video' ? '' : 'none';
 }
 
 // ========== プロフィール登録送信（初回）==========
@@ -1084,8 +1070,6 @@ function doSubmit() {
   }
 
   var evIdxs = chk('ev');
-  var media = document.getElementById('mediaCons').checked;
-
 
   evIdxs.forEach(function(i) {
     var idx = parseInt(i);
@@ -1108,12 +1092,8 @@ function doSubmit() {
     if (!nTos || !nTos.checked)  errs.push('ビデオ相談企画の応募規約への同意が必要です。');
     if (!nCons || !nCons.checked) errs.push('動画・配信利用への同意が必要です。');
     if (!val('onBroadcastName')) errs.push('配信・動画内でお呼びするお名前を入力してください。');
-    if (!val('onConcern'))       errs.push('お悩み内容を入力してください。');
-    if (val('onVideoUrl')) {
-      var phoneConsult = document.querySelector('input[name="onPhoneConsult"]:checked');
-      if (!phoneConsult) errs.push('電話でのご相談希望を選択してください。');
-      else if (phoneConsult.value === '希望する' && !val('onConsultPhone')) errs.push('かけてほしい電話番号を入力してください。');
-    }
+    if (!rv('onConsultType'))    errs.push('ご相談方法を選択してください。');
+    if (rv('onConsultType') === 'text' && !val('onConcern')) errs.push('お悩み内容を入力してください。');
   }
 
   if (errs.length) {
@@ -1122,6 +1102,10 @@ function doSubmit() {
     gerr.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
+
+  var broadcastName = hasOnlineEv ? val('onBroadcastName') : '';
+  var consultType   = hasOnlineEv ? rv('onConsultType')    : '';
+  var mainName      = ((mainP.familyName || '') + (mainP.givenName || '')).trim();
 
   btn.disabled = true; btn.textContent = '送信中...';
 
@@ -1149,11 +1133,9 @@ function doSubmit() {
       tennisArea: mainP.tennisArea, tennisEnv: mainP.tennisEnv,
       additionalParticipants: additionals,
       selectedEvents: selEvs,
-      onlineBroadcastName: hasOnlineEv ? val('onBroadcastName') : '',
-      onlineConcern:       hasOnlineEv ? val('onConcern')       : '',
-      onlineVideoUrl:      hasOnlineEv ? val('onVideoUrl')      : '',
-      onlinePhoneConsult:  hasOnlineEv ? rv('onPhoneConsult')   : '',
-      onlineConsultPhone:  hasOnlineEv ? val('onConsultPhone')  : '',
+      onlineBroadcastName: broadcastName,
+      onlineConsultType:   consultType,
+      onlineConcern:       consultType === 'text' ? val('onConcern') : '',
     })
   })
   .then(function(r){ return r.json(); })
@@ -1165,9 +1147,18 @@ function doSubmit() {
       document.getElementById('fw').style.display = 'none';
       var applied = res.appliedEvents || [];
       document.getElementById('stitle').textContent = '応募を受け付けました！';
-      document.getElementById('sbody').textContent = applied.length > 0
-        ? '応募イベント:\n' + applied.map(function(n){ return '・' + n; }).join('\n') + '\n\n当落結果はLINEでお知らせします。\nしばらくお待ちください。'
-        : 'プロフィール情報を更新しました。\nありがとうございます！';
+      var lines = [];
+      if (mainName) lines.push(mainName + '様');
+      if (broadcastName) lines.push('動画内でお呼びするお名前：' + broadcastName + '様');
+      if (applied.length > 0) {
+        lines.push('応募イベント:\n' + applied.map(function(n){ return '・' + n; }).join('\n'));
+        lines.push(consultType === 'video'
+          ? '動画相談フォームをLINEでお送りします。\nしばらくお待ちください。'
+          : '当落結果はLINEでお知らせします。\nしばらくお待ちください。');
+      } else {
+        lines.push('プロフィール情報を更新しました。\nありがとうございます！');
+      }
+      document.getElementById('sbody').textContent = lines.join('\n\n');
       document.getElementById('success').style.display = '';
       document.getElementById('saction').innerHTML =
         '<button class="btn" style="max-width:300px;margin:20px auto 0;display:block;background:#4a90d9" onclick="reApply()">続けて別の応募をする</button>';

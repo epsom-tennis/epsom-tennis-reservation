@@ -151,9 +151,7 @@ function submitLiffApplication(data) {
           .concat(isOnline ? [
             data.onlineBroadcastName || '',
             data.onlineConcern       || '',
-            data.onlineVideoUrl      || '',
-            data.onlinePhoneConsult  || '',
-            data.onlineConsultPhone  || '',
+            data.onlineConsultType   || '',
           ] : [])
         );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
@@ -180,6 +178,18 @@ function submitLiffApplication(data) {
       pushMessage(data.userId,
         `${namesPart}応募を受け付けました！\n\n応募イベント:\n${eventList}\n\n当落結果は後日このLINEでお知らせします。\nしばらくお待ちください。`
       );
+      // 動画相談の場合はGoogleフォームURLを追加送信
+      if ((data.onlineConsultType || '') === 'video') {
+        const formUrl = getProp('VIDEO_CONSULT_FORM_URL');
+        if (formUrl) {
+          const broadcastName = data.onlineBroadcastName || '';
+          pushMessage(data.userId,
+            `動画でのご相談フォームはこちらです。\nフォームから動画の共有リンクをご提出ください。` +
+            (broadcastName ? `\n\n動画内でのお名前：${broadcastName}` : '') +
+            `\n\n${formUrl}`
+          );
+        }
+      }
       const nowStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MM/dd HH:mm');
       notifyStaff(`✅ LIFF応募 ${nowStr}\n${appliedParticipantNames.join('、')}（計${appliedParticipantNames.length}名）\n${appliedNames.join('、')}`);
     } else {
