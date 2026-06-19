@@ -139,6 +139,7 @@ function submitLiffApplication(data) {
         const resultSheet = ss.getSheetByName(ev.resultSheetName);
         if (!resultSheet) continue;
         const resultData = resultSheet.getDataRange().getValues();
+        const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
         let already = false;
         for (let i = 1; i < resultData.length; i++) {
           if (String(resultData[i][1]) === pUserId) { already = true; break; }
@@ -147,7 +148,6 @@ function submitLiffApplication(data) {
         const evCoach  = ev.coachKnowledge || data.coachKnowledge || '';
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
         const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
-        const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
         resultSheet.appendRow(
           [fullName, pUserId, '', '', '', evCoach, evSrcStr, evRsnStr, new Date()]
           .concat(isOnline ? [
