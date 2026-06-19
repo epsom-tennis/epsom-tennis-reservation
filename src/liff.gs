@@ -143,7 +143,7 @@ function submitLiffApplication(data) {
         for (let i = 1; i < resultData.length; i++) {
           if (String(resultData[i][1]) === pUserId) { already = true; break; }
         }
-        if (already) continue;
+        if (already && !isOnline) continue; // オンラインは常時募集のため重複応募を許可
         const evCoach  = ev.coachKnowledge || data.coachKnowledge || '';
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
         const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
