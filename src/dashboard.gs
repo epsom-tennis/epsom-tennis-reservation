@@ -461,6 +461,12 @@ function sendLiffLinksToStaff() {
     '',
     '💻 オンライン応募',
     base + '?type=online',
+    '',
+    '🎥 動画相談（ビデオ相談を自動選択）',
+    base + '?type=online&consult=video',
+    '',
+    '📝 文章相談（文章相談を自動選択）',
+    base + '?type=online&consult=text',
   ].join('\n');
   pushMessage(staffUserId, text);
   return { success: true };
@@ -823,6 +829,8 @@ function getDashboardHtml() {
 '{label:"✏️ プロフィール修正",desc:"既存会員向け。プロフィール編集欄が開いた状態で表示されます。",url:base+"?page=profile"},' +
 '{label:"📍 オフライン応募",desc:"オフラインイベントのみ表示されます。",url:base+"?type=offline"},' +
 '{label:"💻 オンライン応募",desc:"オンラインイベントのみ表示されます。",url:base+"?type=online"},' +
+'{label:"🎥 動画相談",desc:"オンラインのみ・動画相談を自動選択。",url:base+"?type=online&consult=video"},' +
+'{label:"📝 文章相談",desc:"オンラインのみ・文章相談を自動選択。",url:base+"?type=online&consult=text"},' +
 '];' +
 'var html=links.map(function(l){' +
 'return "<div class=\'mb-3\'><div class=\'fw-bold mb-1\'>"+l.label+"</div><div class=\'text-muted small mb-1\'>"+l.desc+"</div><div class=\'d-flex gap-2\'><input type=\'text\' class=\'form-control form-control-sm\' value=\'"+l.url+"\' readonly onclick=\'this.select()\'><button class=\'btn btn-sm btn-outline-primary flex-shrink-0\' data-url=\'"+l.url+"\' onclick=\'cpLink(this)\'>コピー</button></div></div>";' +

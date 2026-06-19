@@ -91,6 +91,7 @@ var participantCount = 1;
 var pendingAddParticipantData = null;
 var isFirstTimeUser = false;
 var profileAccordionOpen = false;
+var _consultParam = null;
 
 var AREA_OPTS  = ['東京','神奈川','千葉','埼玉','その他関東圏','関東圏外'];
 var ENV_OPTS   = ['スクールに通っている','会社のサークル','学校の部活・サークル','テニス仲間とコートを借りる'];
@@ -422,9 +423,11 @@ function renderEntryForm() {
 
   fw.style.display = '';
   updateSubmitBtnLabel();
+  _consultParam = getLiffUrlParam('consult');
   updateOnlineFields();
   updateConsentSections();
   applyUrlEventPreselect();
+  applyUrlConsultPreselect();
 }
 
 function getLiffUrlParam(key) {
@@ -451,6 +454,24 @@ function applyUrlEventPreselect() {
       break;
     }
   }
+}
+
+function applyUrlConsultPreselect() {
+  if (!_consultParam) return;
+  // オンラインイベントが1件のみなら自動チェックしてフィールドを表示
+  var onlineCbs = Array.from(document.querySelectorAll('input[name="ev"]')).filter(function(cb) {
+    var ev = eventsData[parseInt(cb.value)];
+    return ev && (ev.eventType || 'オフライン') === 'オンライン';
+  });
+  if (onlineCbs.length === 1 && !onlineCbs[0].checked) {
+    onlineCbs[0].checked = true;
+    onEventToggle(parseInt(onlineCbs[0].value));
+    // onEventToggle → updateOnlineFields の中で _consultParam による自動選択が走る
+    return;
+  }
+  // 複数または既にチェック済みの場合はラジオだけ適用
+  var preRad = document.querySelector('input[name="onConsultType"][value="' + _consultParam + '"]');
+  if (preRad) { preRad.checked = true; updateConsultType(); }
 }
 
 // ========== プロフィールカードHTML ==========
@@ -867,6 +888,11 @@ function updateOnlineFields() {
         '</div>' +
       '</div>' +
     '</div>';
+  // URLパラメータ（?consult=video|text）による相談方法の自動選択
+  if (_consultParam) {
+    var preRad = document.querySelector('input[name="onConsultType"][value="' + _consultParam + '"]');
+    if (preRad) { preRad.checked = true; updateConsultType(); }
+  }
 }
 
 function updateConsultType() {
