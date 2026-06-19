@@ -1204,7 +1204,7 @@ function doSubmit() {
       if (applied.length > 0) {
         lines.push('応募イベント:\n' + applied.map(function(n){ return '・' + n; }).join('\n'));
         lines.push(consultType === 'video'
-          ? '動画相談フォームをLINEでお送りします。\nしばらくお待ちください。'
+          ? 'このLINEに動画を送ってください 🎥\nコーチが確認します。'
           : '当落結果はLINEでお知らせします。\nしばらくお待ちください。');
       } else {
         lines.push('プロフィール情報を更新しました。\nありがとうございます！');

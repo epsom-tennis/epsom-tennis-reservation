@@ -148,14 +148,17 @@ function submitLiffApplication(data) {
         const evCoach  = ev.coachKnowledge || data.coachKnowledge || '';
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
         const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
+        const isVideo = isOnline && (data.onlineConsultType || '') === 'video';
         resultSheet.appendRow(
           [fullName, pUserId, '', '', '', evCoach, evSrcStr, evRsnStr, new Date()]
           .concat(isOnline ? [
-            data.onlineBroadcastName || '',
-            data.onlineConcern       || '',
-            data.onlineConsultType   || '',
-            data.onlinePhoneConsult  || '',
-            data.onlineConsultPhone  || '',
+            data.onlineBroadcastName || '',  // J: 配信名
+            data.onlineConcern       || '',  // K: お悩み内容
+            data.onlineConsultType   || '',  // L: 相談方法
+            data.onlinePhoneConsult  || '',  // M: 電話相談希望
+            data.onlineConsultPhone  || '',  // N: 電話番号
+            isVideo ? '待ち' : '',           // O: 動画状態
+            '',                              // P: 動画URL
           ] : [])
         );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
@@ -211,17 +214,12 @@ function submitLiffApplication(data) {
 
       pushMessage(data.userId, msgParts.join('\n\n'));
 
-      // 動画相談の場合はGoogleフォームURLを追加送信
+      // 動画相談の場合はLINEへの動画送信を依頼
       if ((data.onlineConsultType || '') === 'video') {
-        const formUrl = getProp('VIDEO_CONSULT_FORM_URL');
-        if (formUrl) {
-          const broadcastName = data.onlineBroadcastName || '';
-          pushMessage(data.userId,
-            `動画でのご相談フォームはこちらです。\nフォームから動画の共有リンクをご提出ください。` +
-            (broadcastName ? `\n\n動画内でのお名前：${broadcastName}` : '') +
-            `\n\n${formUrl}`
-          );
-        }
+        pushMessage(data.userId,
+          `動画をこのLINEに直接送ってください 🎥\n` +
+          `受け取り次第、コーチが確認します。`
+        );
       }
       const nowStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MM/dd HH:mm');
       notifyStaff(`✅ LIFF応募 ${nowStr}\n${appliedParticipantNames.join('、')}（計${appliedParticipantNames.length}名）\n${appliedNames.join('、')}`);

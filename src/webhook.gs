@@ -21,6 +21,8 @@ function doPost(e) {
         } else if (text === '応募状況') {
           handleOuboStatus(event);
         }
+      } else if (event.type === 'message' && event.message.type === 'video') {
+        handleVideoMessage(event);
       }
     }
   } catch (err) {
@@ -163,6 +165,63 @@ function handleOuboStatus(event) {
   }
 
   logAction(userId, '応募状況照会', '', '');
+}
+
+// 動画メッセージを受信：動画待ち応募行を探してDriveに保存
+function handleVideoMessage(event) {
+  const userId = event.source.userId;
+  const messageId = event.message.id;
+
+  // 全オンラインイベントのシートから「動画待ち」行を検索
+  const allEvents = getAllEvents();
+  let foundSheet = null;
+  let foundRowIdx = -1;
+  let broadcastName = '';
+
+  for (const ev of allEvents) {
+    if ((ev.eventType || 'オフライン') !== 'オンライン') continue;
+    const sheet = getSheet(ev.resultSheetName);
+    if (!sheet) continue;
+    const rows = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][1]) === userId &&
+          String(rows[i][11]) === 'video' &&
+          String(rows[i][14]) === '待ち') {
+        foundSheet = sheet;
+        foundRowIdx = i + 1; // シートは1始まり
+        broadcastName = String(rows[i][9] || '');
+        break;
+      }
+    }
+    if (foundSheet) break;
+  }
+
+  if (!foundSheet) return; // 動画待ちの応募なし → 無視
+
+  // LINE Content API で動画バイナリを取得
+  const token = getProp('LINE_CHANNEL_ACCESS_TOKEN');
+  const contentRes = UrlFetchApp.fetch(
+    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+    { headers: { 'Authorization': `Bearer ${token}` }, muteHttpExceptions: true }
+  );
+
+  // Google Drive の指定フォルダに保存（VIDEO_FOLDER_ID 未設定ならマイドライブ直下）
+  const folderId = getProp('VIDEO_FOLDER_ID');
+  const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
+  const fileName = `動画相談_${broadcastName || userId}_${stamp}.mp4`;
+  const file = folder.createFile(contentRes.getBlob().setName(fileName));
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const fileUrl = `https://drive.google.com/file/d/${file.getId()}/view`;
+
+  // スプレッドシート更新（O列=15: 動画状態、P列=16: 動画URL）
+  foundSheet.getRange(foundRowIdx, 15).setValue('受信済み');
+  foundSheet.getRange(foundRowIdx, 16).setValue(fileUrl);
+
+  replyMessage(event.replyToken,
+    `動画を受け取りました！ありがとうございます 🎾\nコーチが確認次第、配信でお答えします。`
+  );
+  logAction(userId, '動画受信', '', broadcastName);
 }
 
 // postbackイベントのルーティング（参加確認ボタン）
