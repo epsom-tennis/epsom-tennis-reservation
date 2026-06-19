@@ -152,6 +152,8 @@ function submitLiffApplication(data) {
             data.onlineBroadcastName || '',
             data.onlineConcern       || '',
             data.onlineConsultType   || '',
+            data.onlinePhoneConsult  || '',
+            data.onlineConsultPhone  || '',
           ] : [])
         );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);

@@ -846,15 +846,24 @@ function updateOnlineFields() {
           '<label class="opt"><input type="radio" name="onConsultType" value="video" onchange="updateConsultType()"><span>動画で相談する</span></label>' +
         '</div>' +
       '</div>' +
-      '<div id="onTextSection" style="display:none">' +
-        '<div class="fg">' +
-          '<label class="fl">お悩み内容<span class="req">*</span></label>' +
-          '<textarea id="onConcern" rows="5" placeholder="ご相談されたい内容をご記入ください"></textarea>' +
-        '</div>' +
+      '<div class="fg">' +
+        '<label class="fl">お悩み内容<span class="req">*</span></label>' +
+        '<textarea id="onConcern" rows="5" placeholder="ご相談されたい内容をご記入ください"></textarea>' +
       '</div>' +
       '<div id="onVideoSection" style="display:none">' +
-        '<div style="font-size:13px;color:#444;background:#f0fff6;border:1px solid #9de0b4;border-radius:8px;padding:12px;line-height:1.8">' +
+        '<div style="font-size:13px;color:#444;background:#f0fff6;border:1px solid #9de0b4;border-radius:8px;padding:12px;margin-bottom:12px;line-height:1.8">' +
           '✅ 応募完了後、LINEにGoogleフォームのURLをお送りします。<br>フォームから動画の共有リンクをご提出ください。' +
+        '</div>' +
+        '<div class="fg">' +
+          '<label class="fl">電話でのご相談を希望されますか？<span class="req">*</span></label>' +
+          '<div class="rlist">' +
+            '<label class="opt"><input type="radio" name="onPhoneConsult" value="希望する" onchange="updateConsultPhone()"><span>希望する</span></label>' +
+            '<label class="opt"><input type="radio" name="onPhoneConsult" value="希望しない" onchange="updateConsultPhone()"><span>希望しない</span></label>' +
+          '</div>' +
+        '</div>' +
+        '<div id="onConsultPhoneSection" style="display:none" class="fg">' +
+          '<label class="fl">かけてほしい電話番号<span class="req">*</span></label>' +
+          '<input type="tel" id="onConsultPhone" placeholder="090-0000-0000">' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -863,10 +872,20 @@ function updateOnlineFields() {
 function updateConsultType() {
   var sel = document.querySelector('input[name="onConsultType"]:checked');
   var type = sel ? sel.value : '';
-  var textSec = document.getElementById('onTextSection');
   var videoSec = document.getElementById('onVideoSection');
-  if (textSec) textSec.style.display = type === 'text' ? '' : 'none';
   if (videoSec) videoSec.style.display = type === 'video' ? '' : 'none';
+  if (type !== 'video') {
+    document.querySelectorAll('input[name="onPhoneConsult"]').forEach(function(r){ r.checked = false; });
+    var ps = document.getElementById('onConsultPhoneSection');
+    if (ps) ps.style.display = 'none';
+  }
+}
+
+function updateConsultPhone() {
+  var ps = document.getElementById('onConsultPhoneSection');
+  if (!ps) return;
+  var sel = document.querySelector('input[name="onPhoneConsult"]:checked');
+  ps.style.display = (sel && sel.value === '希望する') ? '' : 'none';
 }
 
 // ========== プロフィール登録送信（初回）==========
@@ -1093,7 +1112,11 @@ function doSubmit() {
     if (!nCons || !nCons.checked) errs.push('動画・配信利用への同意が必要です。');
     if (!val('onBroadcastName')) errs.push('配信・動画内でお呼びするお名前を入力してください。');
     if (!rv('onConsultType'))    errs.push('ご相談方法を選択してください。');
-    if (rv('onConsultType') === 'text' && !val('onConcern')) errs.push('お悩み内容を入力してください。');
+    if (!val('onConcern'))       errs.push('お悩み内容を入力してください。');
+    if (rv('onConsultType') === 'video') {
+      if (!rv('onPhoneConsult')) errs.push('電話でのご相談希望を選択してください。');
+      else if (rv('onPhoneConsult') === '希望する' && !val('onConsultPhone')) errs.push('かけてほしい電話番号を入力してください。');
+    }
   }
 
   if (errs.length) {
@@ -1135,7 +1158,9 @@ function doSubmit() {
       selectedEvents: selEvs,
       onlineBroadcastName: broadcastName,
       onlineConsultType:   consultType,
-      onlineConcern:       consultType === 'text' ? val('onConcern') : '',
+      onlineConcern:       val('onConcern'),
+      onlinePhoneConsult:  consultType === 'video' ? rv('onPhoneConsult')  : '',
+      onlineConsultPhone:  consultType === 'video' ? val('onConsultPhone') : '',
     })
   })
   .then(function(r){ return r.json(); })
