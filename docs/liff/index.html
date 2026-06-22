@@ -212,6 +212,12 @@ window.addEventListener('load', function() {
     .then(function(profile) {
       if (!profile) return;
       userId = profile.userId;
+      // 起動ログ（fire-and-forget）
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({
+        action: 'logEvent', userId: userId, actionType: 'LIFF起動',
+        eventId: getLiffUrlParam('type') || getLiffUrlParam('page') || '',
+        detail:  getLiffUrlParam('consult') || ''
+      }) }).catch(function(){});
       var fetchTimeout = new Promise(function(_, reject) {
         setTimeout(function() { reject(new Error('サーバーの応答がありませんでした（タイムアウト）')); }, 10000);
       });
@@ -1094,6 +1100,13 @@ function switchToEntry() {
 function doSubmit() {
   var btn = document.getElementById('sbtn'), gerr = document.getElementById('gerr');
   gerr.style.display = 'none';
+
+  // 応募ボタン押下ログ（fire-and-forget）
+  var _logEvNames = chk('ev').map(function(i){ var ev = eventsData[parseInt(i)]; return ev ? ev.name : ''; }).filter(Boolean).join('、');
+  fetch(GAS_URL, { method: 'POST', body: JSON.stringify({
+    action: 'logEvent', userId: userId, actionType: '応募ボタン押下',
+    eventId: _logEvNames, detail: rv('onConsultType') || ''
+  }) }).catch(function(){});
 
   var errs = [];
   var mainP = collectParticipant(1);

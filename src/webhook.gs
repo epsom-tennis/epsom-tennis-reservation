@@ -3,6 +3,13 @@ function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents);
 
+    // LIFFフロントエンドからのイベントログ
+    if (body.action === 'logEvent') {
+      logAction(body.userId || '', body.actionType || '', body.eventId || '', body.detail || '');
+      return ContentService.createTextOutput(JSON.stringify({ success: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // LIFFフォームからの応募送信
     if (body.action === 'submitLiff') {
       const result = submitLiffApplication(body);
