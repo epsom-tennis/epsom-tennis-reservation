@@ -528,6 +528,125 @@ function getFunnelStats(days) {
   }
 }
 
+// 種別・相談方法別ファネル（LIFF起動時のURLパラメータでセグメント分け）
+function getFunnelByType(days) {
+  try {
+    const sheet = getSheet(SHEET.ACTION_LOG);
+    if (!sheet || sheet.getLastRow() <= 1) return { segments: [], days };
+    const data = sheet.getDataRange().getValues();
+    const cutoff = days > 0 ? new Date(Date.now() - days * 86400 * 1000) : null;
+    const typeMap = {};
+    const userTypeMap = {}; // userId -> segment（初回起動時の種別を記録）
+    const getOrCreate = seg => {
+      if (!typeMap[seg]) typeMap[seg] = { open: new Set(), press: new Set(), complete: new Set() };
+      return typeMap[seg];
+    };
+    for (let i = 1; i < data.length; i++) {
+      if (cutoff && data[i][0] < cutoff) continue;
+      const userId = String(data[i][1] || '');
+      const action = String(data[i][2] || '');
+      const eventId = String(data[i][3] || '');
+      const detail  = String(data[i][4] || '');
+      if (action === 'LIFF起動') {
+        let seg = eventId || '通常';
+        if (detail) seg += '/' + detail;
+        if (!userTypeMap[userId]) userTypeMap[userId] = seg;
+        getOrCreate(seg).open.add(userId);
+      } else if (action === '応募ボタン押下') {
+        getOrCreate(userTypeMap[userId] || '通常').press.add(userId);
+      } else if (action === 'LIFF応募') {
+        getOrCreate(userTypeMap[userId] || '通常').complete.add(userId);
+      }
+    }
+    const segments = Object.entries(typeMap).map(([seg, sets]) => ({
+      segment: seg,
+      open: sets.open.size, press: sets.press.size, complete: sets.complete.size,
+      pressRate:    sets.open.size > 0 ? Math.round(sets.press.size    / sets.open.size * 100) : 0,
+      completeRate: sets.open.size > 0 ? Math.round(sets.complete.size / sets.open.size * 100) : 0,
+    })).sort((a, b) => b.open - a.open);
+    return { segments, days };
+  } catch (err) { Logger.log('getFunnelByType error: ' + err); throw err; }
+}
+
+// 日別ユニーク人数の推移
+function getFunnelByDay(days) {
+  try {
+    const sheet = getSheet(SHEET.ACTION_LOG);
+    if (!sheet || sheet.getLastRow() <= 1) return { stages: [], days: [], totalDays: days };
+    const data = sheet.getDataRange().getValues();
+    const cutoff = days > 0 ? new Date(Date.now() - days * 86400 * 1000) : null;
+    const stages = ['LIFF起動', '応募ボタン押下', 'LIFF応募', '動画受信'];
+    const dayMap = {};
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      if (cutoff && data[i][0] < cutoff) continue;
+      const userId = String(data[i][1] || '');
+      const action = String(data[i][2] || '');
+      if (!stages.includes(action)) continue;
+      const dateStr = Utilities.formatDate(new Date(data[i][0]), 'Asia/Tokyo', 'MM/dd');
+      if (!dayMap[dateStr]) { dayMap[dateStr] = {}; stages.forEach(s => dayMap[dateStr][s] = new Set()); }
+      dayMap[dateStr][action].add(userId);
+    }
+    const result = Object.entries(dayMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, s]) => ({ date, counts: stages.map(st => s[st].size) }));
+    return { stages, days: result, totalDays: days };
+  } catch (err) { Logger.log('getFunnelByDay error: ' + err); throw err; }
+}
+
+// 離脱分析：応募ボタンを押したが完了しなかったユーザーと選択イベント
+function getDropoffDetail(days) {
+  try {
+    const sheet = getSheet(SHEET.ACTION_LOG);
+    if (!sheet || sheet.getLastRow() <= 1) return { pressed: 0, completed: 0, total: 0, byEvent: [], dropoffs: [], days };
+    const data = sheet.getDataRange().getValues();
+    const cutoff = days > 0 ? new Date(Date.now() - days * 86400 * 1000) : null;
+    const pressed = {}, completed = new Set();
+    for (let i = 1; i < data.length; i++) {
+      if (cutoff && data[i][0] < cutoff) continue;
+      const userId = String(data[i][1] || '');
+      const action = String(data[i][2] || '');
+      if (action === '応募ボタン押下') {
+        pressed[userId] = {
+          ts: Utilities.formatDate(new Date(data[i][0]), 'Asia/Tokyo', 'MM/dd HH:mm'),
+          events: String(data[i][3] || ''), consult: String(data[i][4] || ''),
+        };
+      } else if (action === 'LIFF応募') {
+        completed.add(userId);
+      }
+    }
+    const dropoffs = Object.entries(pressed)
+      .filter(([uid]) => !completed.has(uid))
+      .map(([, d]) => d)
+      .sort((a, b) => b.ts.localeCompare(a.ts));
+    const eventCounts = {};
+    dropoffs.forEach(d => (d.events || '').split('、').filter(Boolean).forEach(ev => { eventCounts[ev] = (eventCounts[ev] || 0) + 1; }));
+    return {
+      days, pressed: Object.keys(pressed).length, completed: completed.size, total: dropoffs.length,
+      byEvent: Object.entries(eventCounts).sort((a,b)=>b[1]-a[1]).map(([ev,count])=>({ev,count})),
+      dropoffs: dropoffs.slice(0, 50),
+    };
+  } catch (err) { Logger.log('getDropoffDetail error: ' + err); throw err; }
+}
+
+// 個人タイムライン：指定UserIDのアクション履歴を時系列で返す
+function getUserTimeline(userId) {
+  try {
+    const sheet = getSheet(SHEET.ACTION_LOG);
+    if (!sheet || sheet.getLastRow() <= 1) return [];
+    const data = sheet.getDataRange().getValues();
+    return data.slice(1)
+      .filter(r => String(r[1] || '') === userId)
+      .map(r => ({
+        ts:      Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'MM/dd HH:mm'),
+        action:  String(r[2] || ''),
+        eventId: String(r[3] || ''),
+        detail:  String(r[4] || ''),
+      }))
+      .sort((a, b) => a.ts.localeCompare(b.ts));
+  } catch (err) { Logger.log('getUserTimeline error: ' + err); throw err; }
+}
+
 // スプレッドシートに「ファネル集計」シートを作成（ROWS+UNIQUE+FILTER数式で自動集計）
 function setupFunnelSheet() {
   const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -732,15 +851,32 @@ function getDashboardHtml() {
 '</select>' +
 '<button class="btn btn-sm btn-primary" onclick="loadFunnel()">📊 集計する</button>' +
 '<button class="btn btn-sm btn-outline-secondary" onclick="runSetupFunnelSheet()">📋 スプレッドシートに出力</button>' +
-'<button class="btn btn-sm btn-outline-info" onclick="toggleLookerInfo()">📈 Looker Studio連携方法</button>' +
+'<button class="btn btn-sm btn-outline-info" onclick="toggleLookerInfo()">📈 Looker Studio</button>' +
 '</div>' +
 '<div id="lookerInfo" style="display:none" class="alert alert-info mb-3 small">' +
 '<strong>Looker Studio でグラフを作る手順</strong><br>' +
 '① <a href="https://lookerstudio.google.com" target="_blank">lookerstudio.google.com</a> を開き「レポートを作成」<br>' +
 '② データソース → 「Googleスプレッドシート」 → このスプレッドシートの「アクション履歴」シートを選択<br>' +
-'③ フィールド C列(actionType) をディメンション、B列(userId)をCOUNT_DISTINCTで集計するとファネルグラフが作れます' +
+'③ C列(actionType)をディメンション、B列(userId)をCOUNT_DISTINCTで集計するとファネルグラフが作れます' +
 '</div>' +
-'<div id="funnelResult"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'<ul class="nav nav-pills mb-3 small">' +
+'<li class="nav-item"><a class="nav-link py-1 active" href="#" id="ftab-btn-overview" onclick="showFunnelTab(\'overview\');return false">📊 概要</a></li>' +
+'<li class="nav-item"><a class="nav-link py-1" href="#" id="ftab-btn-bytype" onclick="showFunnelTab(\'bytype\');return false">🗂 種別別</a></li>' +
+'<li class="nav-item"><a class="nav-link py-1" href="#" id="ftab-btn-daily" onclick="showFunnelTab(\'daily\');return false">📅 日別推移</a></li>' +
+'<li class="nav-item"><a class="nav-link py-1" href="#" id="ftab-btn-dropoff" onclick="showFunnelTab(\'dropoff\');return false">⚠️ 離脱分析</a></li>' +
+'<li class="nav-item"><a class="nav-link py-1" href="#" id="ftab-btn-user" onclick="showFunnelTab(\'user\');return false">👤 個人検索</a></li>' +
+'</ul>' +
+'<div id="ftab-overview"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'<div id="ftab-bytype" style="display:none"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'<div id="ftab-daily" style="display:none"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'<div id="ftab-dropoff" style="display:none"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'<div id="ftab-user" style="display:none">' +
+'<div class="input-group mb-3" style="max-width:440px">' +
+'<input type="text" class="form-control form-control-sm" id="userSearchId" placeholder="LINE User ID（U で始まる文字列）">' +
+'<button class="btn btn-sm btn-outline-secondary" onclick="loadUserTimeline()">検索</button>' +
+'</div>' +
+'<div id="userTimelineResult"><p class="text-muted small">会員一覧タブで名前をクリックすると User ID が取得できます</p></div>' +
+'</div>' +
 '</div>' +
 
 '<!-- 会員一覧タブ -->' +
@@ -901,38 +1037,131 @@ function getDashboardHtml() {
 '});' +
 '}' +
 
+'function showFunnelTab(t){' +
+'["overview","bytype","daily","dropoff","user"].forEach(function(n){' +
+'document.getElementById("ftab-"+n).style.display=t===n?"":"none";' +
+'document.getElementById("ftab-btn-"+n).classList.toggle("active",t===n);' +
+'});' +
+'}' +
+
 'function loadFunnel(){' +
 'var days=parseInt(document.getElementById("funnelDays").value)||0;' +
-'document.getElementById("funnelResult").innerHTML="<p class=\'text-center text-muted\'>集計中...</p>";' +
-'google.script.run' +
-'.withSuccessHandler(function(stats){document.getElementById("funnelResult").innerHTML=renderFunnel(stats);})' +
-'.withFailureHandler(function(e){document.getElementById("funnelResult").innerHTML="<div class=\'alert alert-danger\'>エラー: "+(e&&e.message?e.message:String(e))+"</div>";})' +
-'.getFunnelStats(days);' +
+'var active="overview";' +
+'["overview","bytype","daily","dropoff"].forEach(function(n){' +
+'if(document.getElementById("ftab-btn-"+n).classList.contains("active"))active=n;' +
+'});' +
+'var el=document.getElementById("ftab-"+active);' +
+'el.innerHTML="<p class=\'text-center text-muted\'>集計中...</p>";' +
+'var ok=function(d){' +
+'if(active==="overview")el.innerHTML=renderFunnel(d);' +
+'else if(active==="bytype")el.innerHTML=renderFunnelByType(d);' +
+'else if(active==="daily")el.innerHTML=renderFunnelByDay(d);' +
+'else if(active==="dropoff")el.innerHTML=renderDropoff(d);' +
+'};' +
+'var ng=function(e){el.innerHTML="<div class=\'alert alert-danger\'>エラー: "+(e&&e.message?e.message:String(e))+"</div>";};' +
+'if(active==="overview")google.script.run.withSuccessHandler(ok).withFailureHandler(ng).getFunnelStats(days);' +
+'else if(active==="bytype")google.script.run.withSuccessHandler(ok).withFailureHandler(ng).getFunnelByType(days);' +
+'else if(active==="daily")google.script.run.withSuccessHandler(ok).withFailureHandler(ng).getFunnelByDay(days);' +
+'else if(active==="dropoff")google.script.run.withSuccessHandler(ok).withFailureHandler(ng).getDropoffDetail(days);' +
 '}' +
 
 'function renderFunnel(stats){' +
-'if(!stats||!stats.stages||stats.stages.length===0)return"<p class=\'text-muted text-center\'>データがありません</p>";' +
+'if(!stats||!stats.stages||!stats.stages.length)return"<p class=\'text-muted text-center\'>データがありません</p>";' +
 'var label=stats.days>0?"直近"+stats.days+"日":"全期間";' +
 'var max=stats.stages[0].count||1;' +
 'var html="<div class=\'card p-3\'><p class=\'text-muted small mb-3\'>集計期間: "+label+"</p>";' +
 'stats.stages.forEach(function(s,i){' +
-'var barPct=max>0?Math.round(s.count/max*100):0;' +
-'html+="<div class=\'mb-4\'>";' +
-'html+="<div class=\'d-flex justify-content-between mb-1\'>";' +
-'html+="<span class=\'fw-bold\'>"+s.name+"</span>";' +
-'html+="<span>"+s.count+"人";' +
+'var p=max>0?Math.round(s.count/max*100):0;' +
+'html+="<div class=\'mb-4\'><div class=\'d-flex justify-content-between mb-1\'><span class=\'fw-bold\'>"+s.name+"</span><span>"+s.count+"人";' +
 'if(s.rate!==null)html+=" <span class=\'text-muted small\'>(起動の"+s.rate+"%)</span>";' +
-'html+="</span></div>";' +
-'html+="<div class=\'progress mb-1\' style=\'height:28px\'><div class=\'progress-bar\' style=\'width:"+barPct+"%\'>"+s.count+"人 / "+barPct+"%</div></div>";' +
-'if(i<stats.stages.length-1){' +
-'var drop=s.count-stats.stages[i+1].count;' +
-'var dropPct=s.count>0?Math.round(drop/s.count*100):0;' +
-'html+="<div class=\'text-muted small\'>↓ ここで離脱: "+drop+"人 ("+dropPct+"%)</div>";' +
+'html+="</span></div><div class=\'progress mb-1\' style=\'height:24px\'><div class=\'progress-bar\' style=\'width:"+p+"%\'>"+s.count+"人</div></div>";' +
+'if(i<stats.stages.length-1){var drop=s.count-stats.stages[i+1].count;var dp=s.count>0?Math.round(drop/s.count*100):0;html+="<div class=\'text-muted small\'>↓ 離脱: "+drop+"人 ("+dp+"%)</div>";}' +
+'html+="</div>";});' +
+'html+="</div>";return html;' +
 '}' +
+
+'function renderFunnelByType(stats){' +
+'if(!stats||!stats.segments||!stats.segments.length)return"<p class=\'text-muted text-center\'>データがありません</p>";' +
+'var label=stats.days>0?"直近"+stats.days+"日":"全期間";' +
+'var names={"online":"💻 オンライン","offline":"📍 オフライン","online/video":"🎥 動画相談","online/text":"📝 文章相談","通常":"📱 通常アクセス"};' +
+'var html="<p class=\'text-muted small mb-2\'>集計期間: "+label+"</p><div class=\'table-responsive\'><table class=\'table table-sm table-hover\'><thead class=\'table-light\'><tr><th>アクセス種別</th><th class=\'text-end\'>起動</th><th class=\'text-end\'>ボタン押下</th><th class=\'text-end\'>応募完了</th><th class=\'text-end\'>完了率</th></tr></thead><tbody>";' +
+'stats.segments.forEach(function(s){' +
+'var n=names[s.segment]||s.segment;' +
+'var badge=s.completeRate>=50?"bg-success":s.completeRate>=30?"bg-warning text-dark":"bg-danger";' +
+'html+="<tr><td>"+n+"</td><td class=\'text-end\'>"+s.open+"人</td><td class=\'text-end\'>"+s.press+"人 <span class=\'text-muted small\'>("+s.pressRate+"%)</span></td><td class=\'text-end\'>"+s.complete+"人</td><td class=\'text-end\'><span class=\'badge "+badge+"\'>"+s.completeRate+"%</span></td></tr>";' +
+'});' +
+'html+="</tbody></table></div>";return html;' +
+'}' +
+
+'function renderFunnelByDay(stats){' +
+'if(!stats||!stats.days||!stats.days.length)return"<p class=\'text-muted text-center\'>データがありません</p>";' +
+'var colors=["#0d6efd","#6c757d","#198754","#ffc107"];' +
+'var label=stats.totalDays>0?"直近"+stats.totalDays+"日":"全期間";' +
+'var maxes=stats.stages.map(function(_,si){return Math.max.apply(null,stats.days.map(function(d){return d.counts[si]||0;}))||1;});' +
+'var html="<p class=\'text-muted small mb-2\'>集計期間: "+label+"</p><div class=\'table-responsive\'><table class=\'table table-sm\'><thead class=\'table-light\'><tr><th>日付</th>";' +
+'stats.stages.forEach(function(s){html+="<th class=\'text-end\'>"+s+"</th>";});' +
+'html+="</tr></thead><tbody>";' +
+'stats.days.forEach(function(d){' +
+'html+="<tr><td>"+d.date+"</td>";' +
+'d.counts.forEach(function(c,i){' +
+'var p=Math.round(c/maxes[i]*60);' +
+'html+="<td class=\'text-end\' style=\'min-width:80px\'><div style=\'display:inline-flex;align-items:center;gap:4px;width:100%;justify-content:flex-end\'><div style=\'background:"+colors[i]+"33;border-radius:3px;height:12px;width:"+p+"px;min-width:2px\'></div>"+c+"</div></td>";' +
+'});' +
+'html+="</tr>";' +
+'});' +
+'html+="</tbody></table></div>";return html;' +
+'}' +
+
+'function renderDropoff(stats){' +
+'var label=stats.days>0?"直近"+stats.days+"日":"全期間";' +
+'var html="<p class=\'text-muted small mb-3\'>集計期間: "+label+"</p>";' +
+'html+="<div class=\'row g-3 mb-3\'>";' +
+'html+="<div class=\'col-sm-4\'><div class=\'card p-3 text-center\'><div class=\'h3 text-primary mb-0\'>"+stats.pressed+"</div><div class=\'small text-muted\'>ボタンを押した人</div></div></div>";' +
+'html+="<div class=\'col-sm-4\'><div class=\'card p-3 text-center\'><div class=\'h3 text-success mb-0\'>"+stats.completed+"</div><div class=\'small text-muted\'>応募完了した人</div></div></div>";' +
+'html+="<div class=\'col-sm-4\'><div class=\'card p-3 text-center\'><div class=\'h3 text-danger mb-0\'>"+stats.total+"</div><div class=\'small text-muted\'>途中で止まった人</div></div></div>";' +
+'html+="</div>";' +
+'if(stats.byEvent&&stats.byEvent.length){' +
+'html+="<div class=\'card p-3 mb-3\'><strong class=\'d-block mb-2\'>止まった人が選んでいたイベント</strong><table class=\'table table-sm mb-0\'><thead><tr><th>イベント</th><th class=\'text-end\'>人数</th></tr></thead><tbody>";' +
+'stats.byEvent.forEach(function(r){html+="<tr><td>"+r.ev+"</td><td class=\'text-end\'>"+r.count+"人</td></tr>";});' +
+'html+="</tbody></table></div>";' +
+'}' +
+'if(stats.dropoffs&&stats.dropoffs.length){' +
+'html+="<div class=\'card p-3\'><strong class=\'d-block mb-2\'>対象ユーザー詳細（最大50件）</strong><div class=\'table-responsive\'><table class=\'table table-sm mb-0\'><thead><tr><th>日時</th><th>選択イベント</th><th>相談種別</th></tr></thead><tbody>";' +
+'stats.dropoffs.forEach(function(d){' +
+'var c=d.consult==="video"?"🎥 動画":d.consult==="text"?"📝 文章":"-";' +
+'html+="<tr><td>"+d.ts+"</td><td>"+(d.events||"-")+"</td><td>"+c+"</td></tr>";' +
+'});' +
+'html+="</tbody></table></div></div>";' +
+'}' +
+'return html;' +
+'}' +
+
+'function loadUserTimeline(){' +
+'var uid=document.getElementById("userSearchId").value.trim();' +
+'if(!uid){alert("User IDを入力してください");return;}' +
+'var el=document.getElementById("userTimelineResult");' +
+'el.innerHTML="<p class=\'text-muted\'>検索中...</p>";' +
+'google.script.run' +
+'.withSuccessHandler(function(rows){el.innerHTML=renderUserTimeline(uid,rows);})' +
+'.withFailureHandler(function(e){el.innerHTML="<div class=\'alert alert-danger\'>エラー: "+(e&&e.message?e.message:String(e))+"</div>";})' +
+'.getUserTimeline(uid);' +
+'}' +
+
+'function renderUserTimeline(uid,rows){' +
+'if(!rows||!rows.length)return"<p class=\'text-muted\'>このUser IDのデータが見つかりません</p>";' +
+'var icons={"LIFF起動":"🔵","応募ボタン押下":"🟡","LIFF応募":"✅","動画受信":"🎥"};' +
+'var html="<p class=\'small text-muted mb-3\'>User ID: "+uid+" ("+rows.length+"件)</p>";' +
+'html+="<div style=\'padding-left:24px;border-left:2px solid #dee2e6\'>";' +
+'rows.forEach(function(r){' +
+'html+="<div class=\'mb-3\' style=\'position:relative\'>";' +
+'html+="<div style=\'position:absolute;left:-32px;font-size:16px\'>"+(icons[r.action]||"⚪")+"</div>";' +
+'html+="<div class=\'small text-muted\'>"+r.ts+"</div>";' +
+'html+="<div class=\'fw-bold\'>"+r.action+"</div>";' +
+'if(r.eventId)html+="<div class=\'small\'>"+r.eventId+"</div>";' +
+'if(r.detail)html+="<div class=\'small text-muted\'>"+r.detail+"</div>";' +
 'html+="</div>";' +
 '});' +
-'html+="</div>";' +
-'return html;' +
+'html+="</div>";return html;' +
 '}' +
 
 'function runSetupFunnelSheet(){' +
