@@ -497,6 +497,65 @@ function getDashboardConfig() {
   return { liffId: getProp('LIFF_ID') || '' };
 }
 
+// ファネル集計：アクション履歴からステージ別のユニーク人数を返す
+function getFunnelStats(days) {
+  try {
+    const sheet = getSheet(SHEET.ACTION_LOG);
+    if (!sheet || sheet.getLastRow() <= 1) return { stages: [], days: days };
+    const data = sheet.getDataRange().getValues();
+    const cutoff = days > 0 ? new Date(Date.now() - days * 86400 * 1000) : null;
+    const stages = ['LIFF起動', '応募ボタン押下', 'LIFF応募', '動画受信'];
+    const sets = {};
+    stages.forEach(s => sets[s] = new Set());
+    for (let i = 1; i < data.length; i++) {
+      if (cutoff && data[i][0] < cutoff) continue;
+      const userId = String(data[i][1] || '');
+      const action = String(data[i][2] || '');
+      if (sets[action]) sets[action].add(userId);
+    }
+    const base = sets['LIFF起動'].size || 1;
+    return {
+      days: days,
+      stages: stages.map((s, i) => ({
+        name: s,
+        count: sets[s].size,
+        rate: i === 0 ? null : Math.round(sets[s].size / base * 100),
+      })),
+    };
+  } catch (err) {
+    Logger.log('getFunnelStats error: ' + err.toString());
+    throw err;
+  }
+}
+
+// スプレッドシートに「ファネル集計」シートを作成（ROWS+UNIQUE+FILTER数式で自動集計）
+function setupFunnelSheet() {
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  let sheet = ss.getSheetByName('ファネル集計');
+  if (sheet) { sheet.clearContents(); } else { sheet = ss.insertSheet('ファネル集計'); }
+  const log = SHEET.ACTION_LOG;
+  sheet.getRange('A1').setValue('📊 ファネル集計').setFontWeight('bold').setFontSize(14);
+  sheet.getRange('A2').setValue('最終出力: ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
+  sheet.getRange('A4:E4').setValues([['ステップ', 'ユニーク人数', '起動からの率', '前ステップからの率', '離脱数']]).setFontWeight('bold');
+  const stages = ['LIFF起動', '応募ボタン押下', 'LIFF応募', '動画受信'];
+  stages.forEach((stage, idx) => {
+    const row = idx + 5;
+    sheet.getRange(row, 1).setValue(stage);
+    sheet.getRange(row, 2).setFormula(
+      `=IFERROR(ROWS(UNIQUE(FILTER(${log}!B:B,${log}!C:C="${stage}",${log}!B:B<>""))),0)`
+    );
+    sheet.getRange(row, 3).setFormula(idx === 0 ? '="100%"' : `=IFERROR(TEXT(B${row}/B5,"0%"),"-")`);
+    sheet.getRange(row, 4).setFormula(idx === 0 ? '="-"' : `=IFERROR(TEXT(B${row}/B${row-1},"0%"),"-")`);
+    sheet.getRange(row, 5).setFormula(idx === stages.length-1 ? '="-"' : `=IFERROR(B${row}-B${row+1},"-")`);
+  });
+  sheet.setColumnWidth(1, 160);
+  sheet.setColumnWidth(2, 100);
+  sheet.setColumnWidth(3, 120);
+  sheet.setColumnWidth(4, 140);
+  sheet.setColumnWidth(5, 80);
+  return { success: true };
+}
+
 // ===== HTMLの生成 =====
 
 function getDashboardHtml() {
@@ -532,6 +591,7 @@ function getDashboardHtml() {
 '<li class="nav-item"><a class="nav-link active" href="#" id="tab-btn-events" onclick="showTab(\'events\');return false">イベント一覧</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-broadcast" onclick="showTab(\'broadcast\');return false">絞り込み送信</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-members" onclick="showTab(\'members\');return false">会員一覧</a></li>' +
+'<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-funnel" onclick="showTab(\'funnel\');return false">📊 ファネル分析</a></li>' +
 '</ul>' +
 
 '<!-- イベント一覧タブ -->' +
@@ -661,6 +721,28 @@ function getDashboardHtml() {
 '</div>' +
 '</div>' +
 
+'<!-- ファネル分析タブ -->' +
+'<div id="tab-funnel" style="display:none">' +
+'<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">' +
+'<select class="form-select form-select-sm" id="funnelDays" style="width:auto">' +
+'<option value="7">直近7日</option>' +
+'<option value="30" selected>直近30日</option>' +
+'<option value="90">直近90日</option>' +
+'<option value="0">全期間</option>' +
+'</select>' +
+'<button class="btn btn-sm btn-primary" onclick="loadFunnel()">📊 集計する</button>' +
+'<button class="btn btn-sm btn-outline-secondary" onclick="runSetupFunnelSheet()">📋 スプレッドシートに出力</button>' +
+'<button class="btn btn-sm btn-outline-info" onclick="toggleLookerInfo()">📈 Looker Studio連携方法</button>' +
+'</div>' +
+'<div id="lookerInfo" style="display:none" class="alert alert-info mb-3 small">' +
+'<strong>Looker Studio でグラフを作る手順</strong><br>' +
+'① <a href="https://lookerstudio.google.com" target="_blank">lookerstudio.google.com</a> を開き「レポートを作成」<br>' +
+'② データソース → 「Googleスプレッドシート」 → このスプレッドシートの「アクション履歴」シートを選択<br>' +
+'③ フィールド C列(actionType) をディメンション、B列(userId)をCOUNT_DISTINCTで集計するとファネルグラフが作れます' +
+'</div>' +
+'<div id="funnelResult"><p class="text-muted text-center mt-4">「集計する」を押してください</p></div>' +
+'</div>' +
+
 '<!-- 会員一覧タブ -->' +
 '<div id="tab-members" style="display:none">' +
 '<div class="row g-3">' +
@@ -769,12 +851,10 @@ function getDashboardHtml() {
 '}' +
 
 'function showTab(t){' +
-'document.getElementById("tab-events").style.display=t==="events"?"":"none";' +
-'document.getElementById("tab-broadcast").style.display=t==="broadcast"?"":"none";' +
-'document.getElementById("tab-members").style.display=t==="members"?"":"none";' +
-'document.getElementById("tab-btn-events").classList.toggle("active",t==="events");' +
-'document.getElementById("tab-btn-broadcast").classList.toggle("active",t==="broadcast");' +
-'document.getElementById("tab-btn-members").classList.toggle("active",t==="members");' +
+'["events","broadcast","members","funnel"].forEach(function(n){' +
+'document.getElementById("tab-"+n).style.display=t===n?"":"none";' +
+'document.getElementById("tab-btn-"+n).classList.toggle("active",t===n);' +
+'});' +
 'if(t==="members"&&!membersLoaded){membersLoaded=true;loadMembers();}' +
 '}' +
 
@@ -819,6 +899,52 @@ function getDashboardHtml() {
 'var opt=document.createElement("option");' +
 'opt.value=idx;opt.textContent=ev.name;sel.appendChild(opt);' +
 '});' +
+'}' +
+
+'function loadFunnel(){' +
+'var days=parseInt(document.getElementById("funnelDays").value)||0;' +
+'document.getElementById("funnelResult").innerHTML="<p class=\'text-center text-muted\'>集計中...</p>";' +
+'google.script.run' +
+'.withSuccessHandler(function(stats){document.getElementById("funnelResult").innerHTML=renderFunnel(stats);})' +
+'.withFailureHandler(function(e){document.getElementById("funnelResult").innerHTML="<div class=\'alert alert-danger\'>エラー: "+(e&&e.message?e.message:String(e))+"</div>";})' +
+'.getFunnelStats(days);' +
+'}' +
+
+'function renderFunnel(stats){' +
+'if(!stats||!stats.stages||stats.stages.length===0)return"<p class=\'text-muted text-center\'>データがありません</p>";' +
+'var label=stats.days>0?"直近"+stats.days+"日":"全期間";' +
+'var max=stats.stages[0].count||1;' +
+'var html="<div class=\'card p-3\'><p class=\'text-muted small mb-3\'>集計期間: "+label+"</p>";' +
+'stats.stages.forEach(function(s,i){' +
+'var barPct=max>0?Math.round(s.count/max*100):0;' +
+'html+="<div class=\'mb-4\'>";' +
+'html+="<div class=\'d-flex justify-content-between mb-1\'>";' +
+'html+="<span class=\'fw-bold\'>"+s.name+"</span>";' +
+'html+="<span>"+s.count+"人";' +
+'if(s.rate!==null)html+=" <span class=\'text-muted small\'>(起動の"+s.rate+"%)</span>";' +
+'html+="</span></div>";' +
+'html+="<div class=\'progress mb-1\' style=\'height:28px\'><div class=\'progress-bar\' style=\'width:"+barPct+"%\'>"+s.count+"人 / "+barPct+"%</div></div>";' +
+'if(i<stats.stages.length-1){' +
+'var drop=s.count-stats.stages[i+1].count;' +
+'var dropPct=s.count>0?Math.round(drop/s.count*100):0;' +
+'html+="<div class=\'text-muted small\'>↓ ここで離脱: "+drop+"人 ("+dropPct+"%)</div>";' +
+'}' +
+'html+="</div>";' +
+'});' +
+'html+="</div>";' +
+'return html;' +
+'}' +
+
+'function runSetupFunnelSheet(){' +
+'google.script.run' +
+'.withSuccessHandler(function(){alert("スプレッドシートに「ファネル集計」シートを作成しました。");})' +
+'.withFailureHandler(function(e){alert("エラー: "+(e&&e.message?e.message:String(e)));})' +
+'.setupFunnelSheet();' +
+'}' +
+
+'function toggleLookerInfo(){' +
+'var el=document.getElementById("lookerInfo");' +
+'el.style.display=el.style.display==="none"?"":"none";' +
 '}' +
 
 'function showLiffLinks(){' +
