@@ -29,8 +29,11 @@ function sendResults() {
 
 // メニューからもダッシュボードからも呼び出せる送信処理の共通実装
 // 同一LINEアカウントからの複数人応募は1通にまとめて送信し、各参加者の名前を付ける
+// オンラインイベントは「当選者には配信をもってご連絡」が基本のため、落選者にはLINEを送らない（シートの送信済み記録のみ行う）
 function sendResultsCore(sheet) {
   const sheetName = sheet.getName();
+  const ev = getAllEvents().find(e => e.resultSheetName === sheetName);
+  const isOnline = !!ev && ev.eventType === 'オンライン';
   const messages = getResultMessages(sheetName);
   const data = sheet.getDataRange().getValues();
 
@@ -53,22 +56,27 @@ function sendResultsCore(sheet) {
   for (const baseUserId of Object.keys(groups)) {
     const participants = groups[baseUserId];
 
+    // オンラインの落選者はメッセージ送信対象から除外する（オフラインは全員対象）
+    const messageParticipants = isOnline ? participants.filter(p => p.result === '当選') : participants;
+
     // 参加者ごとにメッセージブロックを生成し、複数人なら区切り線でつなぐ
-    const blocks = participants.map(p => {
+    const blocks = messageParticipants.map(p => {
       const body = p.result === '当選' ? messages.win : messages.lose;
       return (p.name ? p.name + ' 様\n' : '') + body;
     });
-    const finalMessage = blocks.join('\n\n──────────\n\n');
 
-    // 当選者がいる場合は参加確認ボタン（Quick Reply）付きで送信
-    const hasWinners = participants.some(p => p.result === '当選');
-    if (hasWinners) {
-      pushMessageWithQuickReply(baseUserId, finalMessage, buildParticipationQuickReply(sheetName, baseUserId));
-    } else {
-      pushMessage(baseUserId, finalMessage);
+    // 当選者がいる場合は参加確認ボタン（Quick Reply）付きで送信。送る内容が無い場合（オンラインで全員落選）はスキップ
+    if (blocks.length > 0) {
+      const finalMessage = blocks.join('\n\n──────────\n\n');
+      const hasWinners = participants.some(p => p.result === '当選');
+      if (hasWinners) {
+        pushMessageWithQuickReply(baseUserId, finalMessage, buildParticipationQuickReply(sheetName, baseUserId));
+      } else {
+        pushMessage(baseUserId, finalMessage);
+      }
+      pushCount++;
+      if (pushCount % 10 === 0) Utilities.sleep(1000);
     }
-    pushCount++;
-    if (pushCount % 10 === 0) Utilities.sleep(1000);
 
     for (const p of participants) {
       sheet.getRange(p.rowIdx + 1, 4).setValue('済');
