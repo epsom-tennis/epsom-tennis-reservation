@@ -937,7 +937,7 @@ function getDashboardHtml() {
 
 '<!-- 文章管理タブ -->' +
 '<div id="tab-messages" style="display:none">' +
-'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や開催日・コーチ名など）に自動で置き換わるので、そのまま残してください。当選・落選メッセージはオンライン/オフラインそれぞれの基本形1つに対し、イベントごとの詳細（開催日・場所・持ち物など）は「イベント一覧」タブの「✏️ 詳細編集」から入力してください。<br><code>{{#if xxx}}...{{/if}}</code>で囲まれた範囲は、その項目（イベント詳細編集で入力するもの）が未入力の場合に見出しごと非表示になります。誤って削除しないようご注意ください。</div>' +
+'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や開催日・コーチ名など）に自動で置き換わるので、そのまま残してください。当選・落選メッセージはオンライン/オフラインそれぞれの基本形1つに対し、イベントごとの詳細（開催日・場所・持ち物など）は「イベント一覧」タブの「✏️ 詳細編集」から入力してください。<br><code>{{#if xxx}}...{{/if}}</code>で囲まれた範囲は、その項目（イベント詳細編集で入力するもの）が未入力の場合に見出しごと非表示になります。誤って削除しないようご注意ください。<br>改行はそのままEnterで入力してください（LINEはプレーンテキストなので<code>&lt;br&gt;</code>と書いても改行されず、文字としてそのまま表示されてしまいます）。<br>「🧪 自分に試し送信」を押すと、<code>{xxx}</code>部分をサンプルの値に置き換えて、STAFF_USER_IDに設定されているLINEへテスト送信できます（保存していない編集中の内容でも送信されます）。</div>' +
 '<div id="msgTemplatesList"><p class="text-muted text-center mt-4">読み込み中...</p></div>' +
 '</div>' +
 
@@ -1339,24 +1339,45 @@ function getDashboardHtml() {
 'html+="<label class=\'fw-bold mb-0\'>"+t.label+"</label>";' +
 'if(t.vars&&t.vars.length)html+="<span class=\'text-muted small\'>変数: "+t.vars.map(function(v){return "{"+v+"}";}).join(" ")+"</span>";' +
 'html+="</div>";' +
-'html+="<textarea class=\'form-control mb-2\' rows=\'4\' id=\'tmpl_"+i+"\'>"+escHtml(t.value)+"</textarea>";' +
-'html+="<button class=\'btn btn-sm btn-primary\' onclick=\'saveTemplate("+i+")\'>保存</button> ";' +
+'html+="<textarea class=\'form-control mb-2\' rows=\'4\' id=\'tmpl_"+i+"\' oninput=\'markTemplateDirty("+i+")\'>"+escHtml(t.value)+"</textarea>";' +
+'html+="<button class=\'btn btn-sm btn-primary\' id=\'tmplBtn_"+i+"\' onclick=\'saveTemplate("+i+")\'>保存</button> ";' +
+'html+="<button class=\'btn btn-sm btn-outline-secondary\' onclick=\'testSendTemplate("+i+")\'>🧪 自分に試し送信</button> ";' +
 'html+="<span class=\'small text-muted\' id=\'tmplResult_"+i+"\'></span>";' +
 'html+="</div>";' +
 '});' +
 'document.getElementById("msgTemplatesList").innerHTML=html;' +
 '}' +
 
+'function markTemplateDirty(i){' +
+'var btn=document.getElementById("tmplBtn_"+i);' +
+'btn.className="btn btn-sm btn-primary";btn.textContent="保存";' +
+'document.getElementById("tmplResult_"+i).textContent="";' +
+'}' +
+
 'function saveTemplate(i){' +
 'var t=msgTemplatesData.templates[i];' +
 'var val=document.getElementById("tmpl_"+i).value;' +
+'var btn=document.getElementById("tmplBtn_"+i);' +
 'var resEl=document.getElementById("tmplResult_"+i);' +
 'resEl.textContent="保存中...";' +
 'var payload={};payload[t.key]=val;' +
 'google.script.run' +
-'.withSuccessHandler(function(r){resEl.textContent=r.success?"✅ 保存しました":"エラー: "+r.error;})' +
+'.withSuccessHandler(function(r){' +
+'if(r.success){btn.className="btn btn-sm btn-success";btn.textContent="✅ 保存済み";resEl.textContent="";}' +
+'else{resEl.textContent="エラー: "+r.error;}' +
+'})' +
 '.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
 '.saveMessageTemplates(payload);' +
+'}' +
+
+'function testSendTemplate(i){' +
+'var val=document.getElementById("tmpl_"+i).value;' +
+'var resEl=document.getElementById("tmplResult_"+i);' +
+'resEl.textContent="送信中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r){resEl.textContent=r.success?"✅ 試し送信しました（自分のLINEを確認してください）":"エラー: "+r.error;})' +
+'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
+'.testSendMessageTemplate(val);' +
 '}' +
 
 'function showLiffLinks(){' +

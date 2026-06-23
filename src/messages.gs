@@ -237,3 +237,34 @@ function saveMessageTemplates(values) {
     return { success: false, error: err.toString() };
   }
 }
+
+// 文章管理タブの「試し送信」用：{xxx}をサンプル値で埋め、STAFF_USER_ID宛にテスト送信する
+function testSendMessageTemplate(text) {
+  try {
+    const staffUserId = getProp('STAFF_USER_ID');
+    if (!staffUserId) return { success: false, error: 'STAFF_USER_IDが未設定です。スクリプトプロパティを確認してください。' };
+
+    const sampleVars = {
+      eventDate:       '6月15日（日）',
+      eventName:       'サンプルイベント',
+      coachName:       '山田コーチ',
+      venue:           '渋谷テニスコート',
+      meetingTime:     '18:50',
+      lessonTime:      '19:00〜21:00',
+      courtType:       'カーペットコートになります。',
+      items:           '・ラケット\n・テニスウェア\n・テニスシューズ',
+      fee:             '無料でご参加いただけます！',
+      lockerInfo:      '受付でのお声がけは不要です。',
+      facilityUrl:     'https://example.com',
+      confirmDeadline: '6月10日（火）12:00',
+      names:           '山田 様',
+      events:          '・サンプルイベントA\n・サンプルイベントB',
+      phoneInfo:       '（090-1234-5678）',
+    };
+    const rendered = renderTemplate_(renderConditionalBlocks_(text, sampleVars), sampleVars);
+    pushMessage(staffUserId, '【テスト送信（サンプル値で差し込み）】\n\n' + rendered);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
