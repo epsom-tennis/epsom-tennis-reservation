@@ -91,7 +91,10 @@ function setupSpreadsheet() {
 // ダッシュボードからイベントを新規作成する（google.script.runから呼び出す）
 function createNewEvent(data) {
   try {
-    const { name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType } = data;
+    const {
+      name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline,
+    } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
     if (!name) return { success: false, error: 'イベント名は必須です。' };
     if (!isOnline && (!eventDate || !closingDate)) {
@@ -145,10 +148,11 @@ function createNewEvent(data) {
       resultSheet.setFrozenRows(1);
     }
 
-    // 設定シートに行を追加（G〜K列に詳細情報）
+    // 設定シートに行を追加（G〜N列に詳細情報、O〜U列に当落メッセージ差し込み用の項目）
     configSheet.appendRow([
       name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
-      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '',
+      eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '', '',
+      meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '',
     ]);
 
     return {
@@ -160,6 +164,54 @@ function createNewEvent(data) {
     };
   } catch (err) {
     Logger.log('createNewEvent error: ' + err.toString());
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ダッシュボードから既存イベントの詳細情報を編集する（google.script.runから呼び出す）
+// appSheetNameをキーに対象行を特定し、A〜D列（イベント名・日付・シート名）以外の詳細項目を上書きする
+function updateEventDetails(data) {
+  try {
+    const { appSheetName, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline } = data;
+    if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
+
+    const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+    const configSheet = ss.getSheetByName(SHEET.CONFIG);
+    if (!configSheet) return { success: false, error: '設定シートが見つかりません。' };
+
+    const configData = configSheet.getDataRange().getValues();
+    let rowIdx = -1;
+    for (let i = 1; i < configData.length; i++) {
+      if (String(configData[i][3]).trim() === appSheetName) { rowIdx = i + 1; break; }
+    }
+    if (rowIdx === -1) return { success: false, error: 'イベントが見つかりません。' };
+
+    const toDateOrBlank = (v) => {
+      if (!v) return '';
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? '' : d;
+    };
+
+    configSheet.getRange(rowIdx, 2).setValue(toDateOrBlank(eventDate));
+    configSheet.getRange(rowIdx, 3).setValue(toDateOrBlank(closingDate));
+    configSheet.getRange(rowIdx, 7).setValue(eventTime || '');
+    configSheet.getRange(rowIdx, 8).setValue(venue || '');
+    configSheet.getRange(rowIdx, 9).setValue(coachName || '');
+    configSheet.getRange(rowIdx, 10).setValue(description || '');
+    configSheet.getRange(rowIdx, 11).setValue(toDateOrBlank(openingDate));
+    configSheet.getRange(rowIdx, 13).setValue(channelUrl || '');
+    configSheet.getRange(rowIdx, 15).setValue(meetingTime || '');
+    configSheet.getRange(rowIdx, 16).setValue(courtType || '');
+    configSheet.getRange(rowIdx, 17).setValue(items || '');
+    configSheet.getRange(rowIdx, 18).setValue(fee || '');
+    configSheet.getRange(rowIdx, 19).setValue(lockerInfo || '');
+    configSheet.getRange(rowIdx, 20).setValue(facilityUrl || '');
+    configSheet.getRange(rowIdx, 21).setValue(confirmDeadline || '');
+
+    return { success: true };
+  } catch (err) {
+    Logger.log('updateEventDetails error: ' + err.toString());
     return { success: false, error: err.toString() };
   }
 }

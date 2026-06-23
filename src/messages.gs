@@ -6,6 +6,61 @@ const MESSAGE_SHEET_NAME = 'メッセージ設定';
 
 const MESSAGE_TEMPLATE_DEFS = [
   {
+    key: 'win_offline',
+    label: '【オフライン】当選メッセージ（基本形）',
+    vars: ['eventDate', 'coachName', 'venue', 'meetingTime', 'lessonTime', 'courtType', 'items', 'fee', 'lockerInfo', 'facilityUrl', 'confirmDeadline'],
+    default:
+      'この度はテニスイベントにご応募いただきありがとうございました！\n\n' +
+      '抽選の結果、ご当選となりましたのでご連絡いたします🎾\n\n' +
+      '当日は下記内容をご確認のうえ、ご参加をお願いいたします。\n\n' +
+      '【開催日程】\n{eventDate}\n\n' +
+      '【コーチ】\n{coachName}\n\n' +
+      '【開催場所】\n{venue}\n\n' +
+      '【集合時間】\n{meetingTime}\n※お時間になりましたら、直接コート周辺までお越しください。\n\n' +
+      '【レッスン時間】\n{lessonTime}\n\n' +
+      '【コートについて】\n{courtType}\n\n' +
+      '【持ち物】\n{items}\n\n※レンタル用品のご用意はございません。\n※ボールは事務局にてご用意いたします。\n\n' +
+      '【参加費】\n{fee}\n\n' +
+      '【更衣室について】\n{lockerInfo}\n\n' +
+      '【施設について】\n施設に関する詳細は、下記公式HPをご確認ください。\n{facilityUrl}\n\n※施設ルールに沿ってご利用をお願いいたします。\n\n' +
+      '【保険・怪我について】\n練習中の事故・怪我につきましては、事務局では責任を負いかねます。\n必要に応じて、スポーツ障害保険等へのご加入をお願いいたします。\n\n' +
+      '【雨天時について】\nインドアコートでの開催となるため、雨天時も原則開催予定となっております。\nただし、荒天や交通状況等により開催可否の判断が必要となった場合は、開始1時間前までにLINEにてご連絡いたします。\nご連絡がない場合は、予定通り開催となります。\n\n' +
+      '【参加確認のお願い】\n確実にご参加いただける方を優先させていただくため、\n【{confirmDeadline}まで】に「参加します」とご返信をお願いいたします。\n\n期限までにご返信がない場合は、キャンセル扱いとさせていただく場合がございます。\n\n' +
+      'その他ご質問等ございましたら、こちらのLINEよりお気軽にご連絡ください。\n当日お会いできるのを楽しみにしております🎾',
+  },
+  {
+    key: 'lose_offline',
+    label: '【オフライン】落選メッセージ（基本形）',
+    vars: ['eventDate'],
+    default:
+      'この度はテニスイベントにご応募いただきありがとうございました！\n\n' +
+      '抽選の結果、今回は残念ながら落選となりました。\n\n' +
+      '【開催日程】\n{eventDate}\n\n' +
+      '定員に達したため、ご参加いただくことができませんでした。\nまたのご応募を心よりお待ちしております。\n\n' +
+      'その他ご質問等ございましたら、こちらのLINEよりお気軽にご連絡ください。',
+  },
+  {
+    key: 'win_online',
+    label: '【オンライン】当選メッセージ（基本形）',
+    vars: ['eventDate'],
+    default:
+      'この度はオンライン相談にご応募いただきありがとうございました！\n\n' +
+      '抽選の結果、ご当選となりましたのでご連絡いたします🎾\n\n' +
+      '【配信予定日】\n{eventDate}\n\n' +
+      'ご相談内容には配信にて回答させていただきます。\n当日をお楽しみにお待ちください。\n\n' +
+      'その他ご質問等ございましたら、こちらのLINEよりお気軽にご連絡ください。',
+  },
+  {
+    key: 'lose_online',
+    label: '【オンライン】落選メッセージ（基本形）',
+    vars: [],
+    default:
+      'この度はオンライン相談にご応募いただきありがとうございました！\n\n' +
+      '抽選の結果、今回は残念ながら落選となりました。\n\n' +
+      'またのご応募を心よりお待ちしております。\n\n' +
+      'その他ご質問等ございましたら、こちらのLINEよりお気軽にご連絡ください。',
+  },
+  {
     key: 'header_apply',
     label: '応募受付ヘッダー（オフライン・オンライン共通の先頭文）',
     vars: ['names'],
@@ -113,9 +168,38 @@ function renderTemplate_(text, vars) {
   return result;
 }
 
+// 当落メッセージ用の日付フォーマット（例: 5月30日（土））
+function formatDateJp_(date) {
+  if (!date) return '';
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  const dayIdx = parseInt(Utilities.formatDate(date, 'Asia/Tokyo', 'u')) % 7;
+  return Utilities.formatDate(date, 'Asia/Tokyo', 'M月d日') + '（' + days[dayIdx] + '）';
+}
+
+// イベント情報を当落メッセージの基本形テンプレートに差し込んで本文を生成する
+// type: 'win' または 'lose'
+function buildResultMessage_(ev, type) {
+  const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
+  const tmpl = getMsgTemplate_(type + '_' + (isOnline ? 'online' : 'offline'));
+  return renderTemplate_(tmpl, {
+    eventName:       ev.name || '',
+    eventDate:       formatDateJp_(ev.eventDate),
+    coachName:       ev.coachName || '',
+    venue:           ev.venue || '',
+    meetingTime:     ev.meetingTime || '',
+    lessonTime:      ev.eventTime || '',
+    courtType:       ev.courtType || '',
+    items:           ev.items || '',
+    fee:             ev.fee || '',
+    lockerInfo:      ev.lockerInfo || '',
+    facilityUrl:     ev.facilityUrl || '',
+    confirmDeadline: ev.confirmDeadline || '',
+  });
+}
+
 // ===== ダッシュボード用 =====
 
-// 全テンプレートの現在値 + イベント別の当選/落選文を返す
+// 全テンプレートの現在値を返す
 function getMessageTemplates() {
   ensureMessageTemplatesSheet_();
   const templates = MESSAGE_TEMPLATE_DEFS.map(def => ({
@@ -125,12 +209,7 @@ function getMessageTemplates() {
     value: getMsgTemplate_(def.key),
   }));
 
-  const events = getAllEvents().map(ev => {
-    const msgs = getResultMessages(ev.resultSheetName);
-    return { resultSheetName: ev.resultSheetName, name: ev.name, winMsg: msgs.win, loseMsg: msgs.lose };
-  });
-
-  return { templates, events };
+  return { templates };
 }
 
 // 共通テンプレートを保存する（values: {key: 本文, ...}）
@@ -147,26 +226,6 @@ function saveMessageTemplates(values) {
       }
     });
     return { success: true };
-  } catch (err) {
-    return { success: false, error: err.toString() };
-  }
-}
-
-// イベント別の当選/落選メッセージを設定シートE/F列に保存する
-function saveEventResultMessage(resultSheetName, type, text) {
-  try {
-    const appSheetName = resultSheetName.replace('_当落', '_応募');
-    const configSheet = getSheet(SHEET.CONFIG);
-    if (!configSheet) return { success: false, error: '設定シートが見つかりません。' };
-    const data = configSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][3]).trim() === appSheetName) {
-        const col = type === 'win' ? 5 : 6; // E列=5, F列=6（1-indexed）
-        configSheet.getRange(i + 1, col).setValue(text);
-        return { success: true };
-      }
-    }
-    return { success: false, error: 'イベントが見つかりません。' };
   } catch (err) {
     return { success: false, error: err.toString() };
   }

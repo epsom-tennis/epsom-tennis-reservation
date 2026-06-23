@@ -166,12 +166,24 @@ function getEventsData() {
       eventDate:    formatDateWithDay(ev.eventDate),
       closingDate:  ev.closingDate  ? Utilities.formatDate(ev.closingDate,  'Asia/Tokyo', 'yyyy/MM/dd') : '',
       openingDate:  ev.openingDate  ? Utilities.formatDate(ev.openingDate,  'Asia/Tokyo', 'yyyy/MM/dd') : '',
+      eventDateISO:    ev.eventDate    ? Utilities.formatDate(ev.eventDate,    'Asia/Tokyo', 'yyyy-MM-dd') : '',
+      closingDateISO:  ev.closingDate  ? Utilities.formatDate(ev.closingDate,  'Asia/Tokyo', 'yyyy-MM-dd') : '',
+      openingDateISO:  ev.openingDate  ? Utilities.formatDate(ev.openingDate,  'Asia/Tokyo', 'yyyy-MM-dd') : '',
       appSheetName: ev.appSheetName,
       resultSheetName: ev.resultSheetName,
       eventTime:   ev.eventTime   || '',
       venue:       ev.venue       || '',
       coachName:   ev.coachName   || '',
       description: ev.description || '',
+      eventType:   ev.eventType   || 'オフライン',
+      channelUrl:  ev.channelUrl  || '',
+      meetingTime:     ev.meetingTime     || '',
+      courtType:       ev.courtType       || '',
+      items:           ev.items           || '',
+      fee:             ev.fee             || '',
+      lockerInfo:      ev.lockerInfo      || '',
+      facilityUrl:     ev.facilityUrl     || '',
+      confirmDeadline: ev.confirmDeadline || '',
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -742,6 +754,20 @@ function getDashboardHtml() {
 '</div></div>' +
 '<div class="col-6"><label class="form-label fw-bold">開催場所</label>' +
 '<input type="text" class="form-control" id="ne_venue" placeholder="渋谷テニスコート"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">集合時間</label>' +
+'<input type="text" class="form-control" id="ne_meeting" placeholder="18:50"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">コートについて</label>' +
+'<input type="text" class="form-control" id="ne_court" placeholder="カーペットコートになります。"></div>' +
+'<div class="col-12"><label class="form-label fw-bold">持ち物</label>' +
+'<textarea class="form-control" id="ne_items" rows="2" placeholder="・ラケット\n・テニスウェア\n・テニスシューズ"></textarea></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加費</label>' +
+'<input type="text" class="form-control" id="ne_fee" placeholder="EPSOM&CO.様のサポートにより、無料でご参加いただけます！"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加確認期限</label>' +
+'<input type="text" class="form-control" id="ne_deadline" placeholder="5月27日（水）12:00"></div>' +
+'<div class="col-12"><label class="form-label fw-bold">更衣室について</label>' +
+'<textarea class="form-control" id="ne_locker" rows="2" placeholder="受付でのお声がけは不要です。..."></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">施設URL</label>' +
+'<input type="url" class="form-control" id="ne_facility_url" placeholder="https://..."></div>' +
 '</div></div>' +
 '<!-- オンライン専用 -->' +
 '<div id="ne_online_fields" class="col-12" style="display:none">' +
@@ -763,6 +789,40 @@ function getDashboardHtml() {
 '<button class="btn btn-success" onclick="submitNewEvent()">登録する</button>' +
 '<button class="btn btn-outline-secondary" onclick="hideNewEventModal()">キャンセル</button>' +
 '<span id="ne_result" class="text-muted small"></span>' +
+'</div></div>' +
+'<!-- イベント詳細編集モーダル -->' +
+'<div id="editEventModal" class="card p-3 mb-3" style="display:none;border:2px solid #0d6efd">' +
+'<h6 class="mb-3">✏️ イベント詳細を編集</h6>' +
+'<div class="row g-2">' +
+'<div class="col-12"><div class="fw-bold" id="ee_name"></div></div>' +
+'<div id="ee_offline_fields" class="col-12">' +
+'<div class="row g-2">' +
+'<div class="col-6"><label class="form-label fw-bold">応募開始日</label><input type="date" class="form-control" id="ee_opening"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">募集終了日</label><input type="date" class="form-control" id="ee_closing"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">開催日</label><input type="date" class="form-control" id="ee_date"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">開催時間（レッスン時間）</label><input type="text" class="form-control" id="ee_time" placeholder="19:00〜21:00"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">開催場所</label><input type="text" class="form-control" id="ee_venue"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">集合時間</label><input type="text" class="form-control" id="ee_meeting"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">コートについて</label><input type="text" class="form-control" id="ee_court"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加費</label><input type="text" class="form-control" id="ee_fee"></div>' +
+'<div class="col-12"><label class="form-label fw-bold">持ち物</label><textarea class="form-control" id="ee_items" rows="2"></textarea></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加確認期限</label><input type="text" class="form-control" id="ee_deadline"></div>' +
+'<div class="col-12"><label class="form-label fw-bold">更衣室について</label><textarea class="form-control" id="ee_locker" rows="2"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">施設URL</label><input type="url" class="form-control" id="ee_facility_url"></div>' +
+'</div></div>' +
+'<div id="ee_online_fields" class="col-12" style="display:none">' +
+'<div class="row g-2">' +
+'<div class="col-12"><label class="form-label fw-bold">チャンネルURL</label><input type="url" class="form-control" id="ee_channel_url"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">応募開始日</label><input type="date" class="form-control" id="ee_opening_online"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">募集終了日</label><input type="date" class="form-control" id="ee_closing_online"></div>' +
+'</div></div>' +
+'<div class="col-12"><label class="form-label fw-bold">コーチ名</label><input type="text" class="form-control" id="ee_coach"></div>' +
+'<div class="col-12"><label class="form-label fw-bold">イベント内容</label><textarea class="form-control" id="ee_desc" rows="3"></textarea></div>' +
+'</div>' +
+'<div class="d-flex gap-2 mt-3 align-items-center">' +
+'<button class="btn btn-primary" onclick="submitEditEvent()">保存する</button>' +
+'<button class="btn btn-outline-secondary" onclick="hideEditEventModal()">キャンセル</button>' +
+'<span id="ee_result" class="text-muted small"></span>' +
 '</div></div>' +
 '<div id="eventList" class="row g-2 mb-3"></div>' +
 '<div id="applicantSection" style="display:none">' +
@@ -877,10 +937,8 @@ function getDashboardHtml() {
 
 '<!-- 文章管理タブ -->' +
 '<div id="tab-messages" style="display:none">' +
-'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や電話番号など）に自動で置き換わるので、そのまま残してください。</div>' +
+'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や開催日・コーチ名など）に自動で置き換わるので、そのまま残してください。当選・落選メッセージはオンライン/オフラインそれぞれの基本形1つに対し、イベントごとの詳細（開催日・場所・持ち物など）は「イベント一覧」タブの「✏️ 詳細編集」から入力してください。</div>' +
 '<div id="msgTemplatesList"><p class="text-muted text-center mt-4">読み込み中...</p></div>' +
-'<h6 class="mt-4 mb-2">イベント別 当選・落選メッセージ</h6>' +
-'<div id="msgEventList"></div>' +
 '</div>' +
 
 '<!-- 会員一覧タブ -->' +
@@ -946,13 +1004,18 @@ function getDashboardHtml() {
 '.getDashboardConfig();' +
 '};' +
 
-'function showNewEventModal(){document.getElementById("newEventModal").style.display="";}' +
+'function showNewEventModal(){' +
+'document.getElementById("newEventModal").style.display="";' +
+'document.getElementById("ne_items").value="・ラケット\\n・テニスウェア\\n・テニスシューズ";' +
+'document.getElementById("ne_fee").value="EPSOM&CO.様のサポートにより、無料でご参加いただけます！";' +
+'}' +
 'function hideNewEventModal(){' +
 'document.getElementById("newEventModal").style.display="none";' +
 'document.getElementById("ne_result").textContent="";' +
 'document.getElementById("ne_type").value="オフライン";' +
 'onEventTypeChange();' +
-'["ne_name","ne_opening","ne_closing","ne_date","ne_venue","ne_coach","ne_desc","ne_channel_url","ne_opening_online","ne_closing_online"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
+'["ne_name","ne_opening","ne_closing","ne_date","ne_venue","ne_coach","ne_desc","ne_channel_url","ne_opening_online","ne_closing_online",' +
+'"ne_meeting","ne_court","ne_items","ne_fee","ne_deadline","ne_locker","ne_facility_url"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
 '["ne_time_start","ne_time_end"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
 '}' +
 'function onEventTypeChange(){' +
@@ -967,6 +1030,7 @@ function getDashboardHtml() {
 'var coach=document.getElementById("ne_coach").value.trim();' +
 'var desc=document.getElementById("ne_desc").value.trim();' +
 'var date="",closing="",opening="",time="",venue="",channelUrl="";' +
+'var meeting="",court="",items="",fee="",deadline="",locker="",facilityUrl="";' +
 'if(isOnline){' +
 'channelUrl=(document.getElementById("ne_channel_url")||{}).value||"";' +
 'opening=((document.getElementById("ne_opening_online")||{}).value||"").replace(/-/g,"/");' +
@@ -979,6 +1043,13 @@ function getDashboardHtml() {
 'var tE=document.getElementById("ne_time_end").value;' +
 'time=tS&&tE?tS+"〜"+tE:(tS||"");' +
 'venue=document.getElementById("ne_venue").value.trim();' +
+'meeting=document.getElementById("ne_meeting").value.trim();' +
+'court=document.getElementById("ne_court").value.trim();' +
+'items=document.getElementById("ne_items").value.trim();' +
+'fee=document.getElementById("ne_fee").value.trim();' +
+'deadline=document.getElementById("ne_deadline").value.trim();' +
+'locker=document.getElementById("ne_locker").value.trim();' +
+'facilityUrl=document.getElementById("ne_facility_url").value.trim();' +
 '}' +
 'if(!name){alert("イベント名は必須です。");return;}' +
 'if(!isOnline&&(!date||!closing)){alert("オフラインイベントには開催日・募集終了日が必須です。");return;}' +
@@ -989,7 +1060,73 @@ function getDashboardHtml() {
 'else{res.textContent="❌ "+r.error;}' +
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
-'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType});' +
+'.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType,' +
+'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,lockerInfo:locker,facilityUrl:facilityUrl});' +
+'}' +
+
+'function openEditEventModal(idx,e){' +
+'if(e)e.stopPropagation();' +
+'var ev=eventsData[idx];' +
+'document.getElementById("editEventModal").dataset.appSheetName=ev.appSheetName;' +
+'document.getElementById("ee_name").textContent=ev.name;' +
+'var isOnline=ev.eventType==="オンライン";' +
+'document.getElementById("ee_offline_fields").style.display=isOnline?"none":"";' +
+'document.getElementById("ee_online_fields").style.display=isOnline?"":"none";' +
+'document.getElementById("ee_date").value=ev.eventDateISO||"";' +
+'document.getElementById("ee_closing").value=ev.closingDateISO||"";' +
+'document.getElementById("ee_opening").value=ev.openingDateISO||"";' +
+'document.getElementById("ee_time").value=ev.eventTime||"";' +
+'document.getElementById("ee_venue").value=ev.venue||"";' +
+'document.getElementById("ee_meeting").value=ev.meetingTime||"";' +
+'document.getElementById("ee_court").value=ev.courtType||"";' +
+'document.getElementById("ee_fee").value=ev.fee||"";' +
+'document.getElementById("ee_items").value=ev.items||"";' +
+'document.getElementById("ee_deadline").value=ev.confirmDeadline||"";' +
+'document.getElementById("ee_locker").value=ev.lockerInfo||"";' +
+'document.getElementById("ee_facility_url").value=ev.facilityUrl||"";' +
+'document.getElementById("ee_channel_url").value=ev.channelUrl||"";' +
+'document.getElementById("ee_opening_online").value=ev.openingDateISO||"";' +
+'document.getElementById("ee_closing_online").value=ev.closingDateISO||"";' +
+'document.getElementById("ee_coach").value=ev.coachName||"";' +
+'document.getElementById("ee_desc").value=ev.description||"";' +
+'document.getElementById("ee_result").textContent="";' +
+'document.getElementById("editEventModal").style.display="";' +
+'document.getElementById("editEventModal").scrollIntoView({behavior:"smooth"});' +
+'}' +
+'function hideEditEventModal(){document.getElementById("editEventModal").style.display="none";}' +
+'function submitEditEvent(){' +
+'var modal=document.getElementById("editEventModal");' +
+'var appSheetName=modal.dataset.appSheetName;' +
+'var isOnline=document.getElementById("ee_online_fields").style.display!=="none";' +
+'var payload={appSheetName:appSheetName,' +
+'coachName:document.getElementById("ee_coach").value.trim(),' +
+'description:document.getElementById("ee_desc").value.trim()};' +
+'if(isOnline){' +
+'payload.channelUrl=document.getElementById("ee_channel_url").value.trim();' +
+'payload.openingDate=document.getElementById("ee_opening_online").value.replace(/-/g,"/");' +
+'payload.closingDate=document.getElementById("ee_closing_online").value.replace(/-/g,"/");' +
+'}else{' +
+'payload.eventDate=document.getElementById("ee_date").value.replace(/-/g,"/");' +
+'payload.closingDate=document.getElementById("ee_closing").value.replace(/-/g,"/");' +
+'payload.openingDate=document.getElementById("ee_opening").value.replace(/-/g,"/");' +
+'payload.eventTime=document.getElementById("ee_time").value.trim();' +
+'payload.venue=document.getElementById("ee_venue").value.trim();' +
+'payload.meetingTime=document.getElementById("ee_meeting").value.trim();' +
+'payload.courtType=document.getElementById("ee_court").value.trim();' +
+'payload.fee=document.getElementById("ee_fee").value.trim();' +
+'payload.items=document.getElementById("ee_items").value.trim();' +
+'payload.confirmDeadline=document.getElementById("ee_deadline").value.trim();' +
+'payload.lockerInfo=document.getElementById("ee_locker").value.trim();' +
+'payload.facilityUrl=document.getElementById("ee_facility_url").value.trim();' +
+'}' +
+'var res=document.getElementById("ee_result");res.textContent="保存中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r){' +
+'if(r.success){res.textContent="✅ 保存完了";setTimeout(function(){hideEditEventModal();loadEvents();},1000);}' +
+'else{res.textContent="❌ "+r.error;}' +
+'})' +
+'.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
+'.updateEventDetails(payload);' +
 '}' +
 
 'function showTab(t){' +
@@ -1029,7 +1166,8 @@ function getDashboardHtml() {
 'var statusBadge=isStopped?"<span class=\'badge bg-danger ms-1 align-middle\' style=\'font-size:10px\'>停止中</span>":"";' +
 'var toggleBtn="<button class=\'btn btn-sm "+(isStopped?"btn-outline-success":"btn-outline-danger")+" py-0 px-2\' onclick=\'doToggleStatus("+idx+",event)\'>"+(isStopped?"▶ 再開":"⏸ 停止")+"</button>";' +
 'var copyBtn=dashConfig.liffId?"<button class=\'btn btn-sm btn-outline-success py-0 px-2\' onclick=\'copyLiffUrl("+idx+",event)\'>🔗 リンクコピー</button>":"";' +
-'var btns="<div class=\'mt-2 d-flex gap-1\'>"+toggleBtn+(copyBtn?copyBtn:"")+"</div>";' +
+'var editBtn="<button class=\'btn btn-sm btn-outline-primary py-0 px-2\' onclick=\'openEditEventModal("+idx+",event)\'>✏️ 詳細編集</button>";' +
+'var btns="<div class=\'mt-2 d-flex gap-1\'>"+toggleBtn+(copyBtn?copyBtn:"")+editBtn+"</div>";' +
 'div.innerHTML="<div class=\'card event-card h-100 border\' style=\'"+(isStopped?"opacity:0.55":"")+"\'  onclick=\'selectEvent("+idx+")\'>"+' +
 '"<div class=\'card-body py-2\'>"+' +
 '"<div class=\'fw-bold mb-1\'>"+ev.name+badge+statusBadge+"</div>"+' +
@@ -1207,20 +1345,6 @@ function getDashboardHtml() {
 'html+="</div>";' +
 '});' +
 'document.getElementById("msgTemplatesList").innerHTML=html;' +
-
-'var evHtml="";' +
-'(data.events||[]).forEach(function(ev,i){' +
-'evHtml+="<div class=\'card p-3 mb-3\'>";' +
-'evHtml+="<div class=\'fw-bold mb-2\'>"+ev.name+"</div>";' +
-'evHtml+="<label class=\'small text-muted\'>当選メッセージ</label>";' +
-'evHtml+="<textarea class=\'form-control mb-2\' rows=\'3\' id=\'evwin_"+i+"\'>"+escHtml(ev.winMsg)+"</textarea>";' +
-'evHtml+="<label class=\'small text-muted\'>落選メッセージ</label>";' +
-'evHtml+="<textarea class=\'form-control mb-2\' rows=\'3\' id=\'evlose_"+i+"\'>"+escHtml(ev.loseMsg)+"</textarea>";' +
-'evHtml+="<button class=\'btn btn-sm btn-outline-primary\' onclick=\'saveEventMsgs("+i+")\'>保存</button> ";' +
-'evHtml+="<span class=\'small text-muted\' id=\'evResult_"+i+"\'></span>";' +
-'evHtml+="</div>";' +
-'});' +
-'document.getElementById("msgEventList").innerHTML=evHtml||"<p class=\'text-muted\'>イベントがありません</p>";' +
 '}' +
 
 'function saveTemplate(i){' +
@@ -1233,23 +1357,6 @@ function getDashboardHtml() {
 '.withSuccessHandler(function(r){resEl.textContent=r.success?"✅ 保存しました":"エラー: "+r.error;})' +
 '.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
 '.saveMessageTemplates(payload);' +
-'}' +
-
-'function saveEventMsgs(i){' +
-'var ev=msgTemplatesData.events[i];' +
-'var win=document.getElementById("evwin_"+i).value;' +
-'var lose=document.getElementById("evlose_"+i).value;' +
-'var resEl=document.getElementById("evResult_"+i);' +
-'resEl.textContent="保存中...";' +
-'google.script.run' +
-'.withSuccessHandler(function(r1){' +
-'google.script.run' +
-'.withSuccessHandler(function(r2){resEl.textContent=(r1.success&&r2.success)?"✅ 保存しました":"エラーが発生しました";})' +
-'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
-'.saveEventResultMessage(ev.resultSheetName,"lose",lose);' +
-'})' +
-'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
-'.saveEventResultMessage(ev.resultSheetName,"win",win);' +
 '}' +
 
 'function showLiffLinks(){' +

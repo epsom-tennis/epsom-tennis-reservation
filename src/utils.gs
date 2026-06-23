@@ -24,12 +24,26 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
+// 設定シートO〜U列ヘッダーを補充する（当落メッセージの差し込み用イベント詳細項目）
+function ensureEventDetailColumns_(sheet) {
+  if (!sheet.getRange(1, 15).getValue()) {
+    sheet.getRange(1, 15).setValue('集合時間');
+    sheet.getRange(1, 16).setValue('コートについて');
+    sheet.getRange(1, 17).setValue('持ち物');
+    sheet.getRange(1, 18).setValue('参加費');
+    sheet.getRange(1, 19).setValue('更衣室について');
+    sheet.getRange(1, 20).setValue('施設URL');
+    sheet.getRange(1, 21).setValue('参加確認期限');
+  }
+}
+
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
-// 戻り値: [{ name, eventDate, closingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType }, ...]
+// 戻り値: [{ name, eventDate, closingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType, meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline }, ...]
 // L列(eventType): "オフライン" または "オンライン"（空欄の場合は"オフライン"扱い）
 function getAllEvents() {
   const sheet = getSheet(SHEET.CONFIG);
   if (!sheet) return [];
+  ensureEventDetailColumns_(sheet);
   const data = sheet.getDataRange().getValues();
   const events = [];
   for (let i = 1; i < data.length; i++) {
@@ -38,9 +52,9 @@ function getAllEvents() {
     const eventDate    = data[i][1] ? new Date(data[i][1]) : null;
     const closingDate  = data[i][2] ? new Date(data[i][2]) : null;
     const appSheetName = String(data[i][3] || '').trim();
-    const winMsg       = String(data[i][4] || '').trim();  // E列：当選メッセージ
-    const loseMsg      = String(data[i][5] || '').trim();  // F列：落選メッセージ
-    const eventTime    = String(data[i][6] || '').trim();  // G列：開催時間
+    const winMsg       = String(data[i][4] || '').trim();  // E列：当選メッセージ（旧・個別上書き用）
+    const loseMsg      = String(data[i][5] || '').trim();  // F列：落選メッセージ（旧・個別上書き用）
+    const eventTime    = String(data[i][6] || '').trim();  // G列：開催時間（レッスン時間として使用）
     const venue        = String(data[i][7] || '').trim();  // H列：開催場所
     const coachName    = String(data[i][8] || '').trim();  // I列：コーチ名
     const description  = String(data[i][9] || '').trim();  // J列：イベント内容
@@ -48,10 +62,21 @@ function getAllEvents() {
     const eventType    = String(data[i][11] || 'オフライン').trim();    // L列：イベント種別
     const channelUrl   = String(data[i][12] || '').trim();             // M列：チャンネルURL
     const status       = String(data[i][13] || '').trim();             // N列：状態（停止/空=公開）
+    const meetingTime     = String(data[i][14] || '').trim(); // O列：集合時間
+    const courtType       = String(data[i][15] || '').trim(); // P列：コートについて
+    const items           = String(data[i][16] || '').trim(); // Q列：持ち物
+    const fee              = String(data[i][17] || '').trim(); // R列：参加費
+    const lockerInfo       = String(data[i][18] || '').trim(); // S列：更衣室について
+    const facilityUrl      = String(data[i][19] || '').trim(); // T列：施設URL
+    const confirmDeadline  = String(data[i][20] || '').trim(); // U列：参加確認期限
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
-    events.push({ name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg, eventTime, venue, coachName, description, eventType, channelUrl, status });
+    events.push({
+      name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg,
+      eventTime, venue, coachName, description, eventType, channelUrl, status,
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline,
+    });
   }
   return events;
 }

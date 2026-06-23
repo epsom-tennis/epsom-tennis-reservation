@@ -86,27 +86,17 @@ function sendResultsCore(sheet) {
   return { winCount, loseCount };
 }
 
-// 設定シートのE列（当選文）・F列（落選文）からメッセージを取得する。
-// 設定シートに文が入っていない場合はデフォルト文を返す。
+// イベント情報（開催日・コーチ・場所・持ち物など）を当選・落選の基本形テンプレートに差し込んでメッセージを生成する。
+// イベント種別（オンライン/オフライン）ごとにダッシュボードの「文章管理」タブで編集できる。
+// 該当イベントが設定シートに見つからない場合のみ汎用デフォルト文を返す。
 function getResultMessages(resultSheetName) {
-  const appSheetName = resultSheetName.replace('_当落', '_応募');
-  const configSheet = getSheet(SHEET.CONFIG);
+  const ev = getAllEvents().find(e => e.resultSheetName === resultSheetName);
+  if (!ev) return { win: defaultWinMessage(), lose: defaultLoseMessage() };
 
-  if (configSheet) {
-    const data = configSheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][3]).trim() === appSheetName) {
-        const winMsg = String(data[i][4]).trim();
-        const loseMsg = String(data[i][5]).trim();
-        return {
-          win:  winMsg  || defaultWinMessage(),
-          lose: loseMsg || defaultLoseMessage(),
-        };
-      }
-    }
-  }
-
-  return { win: defaultWinMessage(), lose: defaultLoseMessage() };
+  return {
+    win:  buildResultMessage_(ev, 'win'),
+    lose: buildResultMessage_(ev, 'lose'),
+  };
 }
 
 function defaultWinMessage() {
