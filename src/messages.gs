@@ -16,16 +16,16 @@ const MESSAGE_TEMPLATE_DEFS = [
       '【開催日程】\n{eventDate}\n\n' +
       '【コーチ】\n{coachName}\n\n' +
       '【開催場所】\n{venue}\n\n' +
-      '【集合時間】\n{meetingTime}\n※お時間になりましたら、直接コート周辺までお越しください。\n\n' +
+      '{{#if meetingTime}}【集合時間】\n{meetingTime}\n※お時間になりましたら、直接コート周辺までお越しください。\n\n{{/if}}' +
       '【レッスン時間】\n{lessonTime}\n\n' +
-      '【コートについて】\n{courtType}\n\n' +
-      '【持ち物】\n{items}\n\n※レンタル用品のご用意はございません。\n※ボールは事務局にてご用意いたします。\n\n' +
-      '【参加費】\n{fee}\n\n' +
-      '【更衣室について】\n{lockerInfo}\n\n' +
-      '【施設について】\n施設に関する詳細は、下記公式HPをご確認ください。\n{facilityUrl}\n\n※施設ルールに沿ってご利用をお願いいたします。\n\n' +
+      '{{#if courtType}}【コートについて】\n{courtType}\n\n{{/if}}' +
+      '{{#if items}}【持ち物】\n{items}\n\n※レンタル用品のご用意はございません。\n※ボールは事務局にてご用意いたします。\n\n{{/if}}' +
+      '{{#if fee}}【参加費】\n{fee}\n\n{{/if}}' +
+      '{{#if lockerInfo}}【更衣室について】\n{lockerInfo}\n\n{{/if}}' +
+      '{{#if facilityUrl}}【施設について】\n施設に関する詳細は、下記公式HPをご確認ください。\n{facilityUrl}\n\n※施設ルールに沿ってご利用をお願いいたします。\n\n{{/if}}' +
       '【保険・怪我について】\n練習中の事故・怪我につきましては、事務局では責任を負いかねます。\n必要に応じて、スポーツ障害保険等へのご加入をお願いいたします。\n\n' +
       '【雨天時について】\nインドアコートでの開催となるため、雨天時も原則開催予定となっております。\nただし、荒天や交通状況等により開催可否の判断が必要となった場合は、開始1時間前までにLINEにてご連絡いたします。\nご連絡がない場合は、予定通り開催となります。\n\n' +
-      '【参加確認のお願い】\n確実にご参加いただける方を優先させていただくため、\n【{confirmDeadline}まで】に「参加します」とご返信をお願いいたします。\n\n期限までにご返信がない場合は、キャンセル扱いとさせていただく場合がございます。\n\n' +
+      '{{#if confirmDeadline}}【参加確認のお願い】\n確実にご参加いただける方を優先させていただくため、\n【{confirmDeadline}まで】に「参加します」とご返信をお願いいたします。\n\n期限までにご返信がない場合は、キャンセル扱いとさせていただく場合がございます。\n\n{{/if}}' +
       'その他ご質問等ございましたら、こちらのLINEよりお気軽にご連絡ください。\n当日お会いできるのを楽しみにしております🎾',
   },
   {
@@ -168,6 +168,13 @@ function renderTemplate_(text, vars) {
   return result;
 }
 
+// {{#if 変数名}}〜{{/if}} で囲んだ範囲を、その変数が空ならまるごと取り除く（見出しごと非表示にするため）
+function renderConditionalBlocks_(text, vars) {
+  return (text || '').replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => {
+    return (vars && vars[key]) ? inner : '';
+  });
+}
+
 // 当落メッセージ用の日付フォーマット（例: 5月30日（土））
 function formatDateJp_(date) {
   if (!date) return '';
@@ -181,7 +188,7 @@ function formatDateJp_(date) {
 function buildResultMessage_(ev, type) {
   const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
   const tmpl = getMsgTemplate_(type + '_' + (isOnline ? 'online' : 'offline'));
-  return renderTemplate_(tmpl, {
+  const vars = {
     eventName:       ev.name || '',
     eventDate:       formatDateJp_(ev.eventDate),
     coachName:       ev.coachName || '',
@@ -194,7 +201,8 @@ function buildResultMessage_(ev, type) {
     lockerInfo:      ev.lockerInfo || '',
     facilityUrl:     ev.facilityUrl || '',
     confirmDeadline: ev.confirmDeadline || '',
-  });
+  };
+  return renderTemplate_(renderConditionalBlocks_(tmpl, vars), vars);
 }
 
 // ===== ダッシュボード用 =====

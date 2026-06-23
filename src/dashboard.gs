@@ -937,7 +937,7 @@ function getDashboardHtml() {
 
 '<!-- 文章管理タブ -->' +
 '<div id="tab-messages" style="display:none">' +
-'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や開催日・コーチ名など）に自動で置き換わるので、そのまま残してください。当選・落選メッセージはオンライン/オフラインそれぞれの基本形1つに対し、イベントごとの詳細（開催日・場所・持ち物など）は「イベント一覧」タブの「✏️ 詳細編集」から入力してください。</div>' +
+'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や開催日・コーチ名など）に自動で置き換わるので、そのまま残してください。当選・落選メッセージはオンライン/オフラインそれぞれの基本形1つに対し、イベントごとの詳細（開催日・場所・持ち物など）は「イベント一覧」タブの「✏️ 詳細編集」から入力してください。<br><code>{{#if xxx}}...{{/if}}</code>で囲まれた範囲は、その項目（イベント詳細編集で入力するもの）が未入力の場合に見出しごと非表示になります。誤って削除しないようご注意ください。</div>' +
 '<div id="msgTemplatesList"><p class="text-muted text-center mt-4">読み込み中...</p></div>' +
 '</div>' +
 
