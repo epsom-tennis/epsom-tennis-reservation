@@ -175,6 +175,12 @@ function renderConditionalBlocks_(text, vars) {
   });
 }
 
+// URLをLINEがリンク化・プレビュー表示しないように、スキーム直後にゼロ幅スペースを挟んで見た目を保ったまま無効化する
+function breakUrlPreview_(url) {
+  if (!url) return url;
+  return url.replace(/^(https?:\/\/)/i, '$1' + '​');
+}
+
 // 当落メッセージ用の日付フォーマット（例: 5月30日（土））
 function formatDateJp_(date) {
   if (!date) return '';
@@ -199,7 +205,7 @@ function buildResultMessage_(ev, type) {
     items:           ev.items || '',
     fee:             ev.fee || '',
     lockerInfo:      ev.lockerInfo || '',
-    facilityUrl:     ev.facilityUrl || '',
+    facilityUrl:     breakUrlPreview_(ev.facilityUrl || ''),
     confirmDeadline: ev.confirmDeadline || '',
   };
   return renderTemplate_(renderConditionalBlocks_(tmpl, vars), vars);
@@ -256,7 +262,7 @@ function testSendMessageTemplate(text) {
       items:           '・ラケット\n・テニスウェア\n・テニスシューズ',
       fee:             '無料でご参加いただけます！',
       lockerInfo:      '受付でのお声がけは不要です。',
-      facilityUrl:     'https://example.com',
+      facilityUrl:     breakUrlPreview_('https://example.com'),
       confirmDeadline: '6月10日（火）12:00',
       names:           '山田 様',
       events:          '・サンプルイベントA\n・サンプルイベントB',
