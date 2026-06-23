@@ -1329,7 +1329,7 @@ function getDashboardHtml() {
 '.getMessageTemplates();' +
 '}' +
 
-'function escHtml(s){var d=document.createElement("div");d.innerText=s||"";return d.innerHTML;}' +
+'function escHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}' +
 
 'function renderMessageTemplates(data){' +
 'var html="";' +
