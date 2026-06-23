@@ -225,9 +225,7 @@ function handleVideoMessage(event) {
   foundSheet.getRange(foundRowIdx, 15).setValue('受信済み');
   foundSheet.getRange(foundRowIdx, 16).setValue(fileUrl);
 
-  replyMessage(event.replyToken,
-    `動画を受け取りました！ありがとうございます 🎾\nコーチが確認次第、配信でお答えします。`
-  );
+  replyMessage(event.replyToken, getMsgTemplate_('video_received'));
   logAction(userId, '動画受信', '', broadcastName);
 }
 
@@ -267,9 +265,7 @@ function handleParticipationConfirm(replyToken, sheetName, baseUserId) {
 
   const eventName = sheetName.replace(/_当落$/, '');
   if (updated > 0) {
-    replyMessage(replyToken,
-      `【参加確定】\n「${eventName}」へのご参加を確認しました！\n当日お会いできることを楽しみにしております 🎾`
-    );
+    replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_confirmed'), { eventName }));
     logAction(baseUserId, '参加確認', eventName, '');
   } else {
     replyMessage(replyToken, '既に処理済みか、対象のデータが見つかりませんでした。');
@@ -295,9 +291,7 @@ function handleParticipationCancel(replyToken, sheetName, baseUserId) {
 
   const eventName = sheetName.replace(/_当落$/, '');
   if (canceledNames.length > 0) {
-    replyMessage(replyToken,
-      `【キャンセル受付】\n「${eventName}」へのご参加をキャンセルしました。\nご連絡いただきありがとうございます。またのご参加をお待ちしております。`
-    );
+    replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_canceled'), { eventName }));
     notifyStaff(`❌ キャンセル連絡\nイベント: ${eventName}\nお名前: ${canceledNames.join('、')}\n繰り上げ選定をご確認ください。`);
     logAction(baseUserId, 'キャンセル', eventName, canceledNames.join('、'));
   } else {

@@ -962,6 +962,7 @@ function doSubmitProfile() {
       tennisArea: mainP.tennisArea, tennisEnv: mainP.tennisEnv,
       additionalParticipants: additionals,
       selectedEvents: [],
+      isNewRegistration: true,
     })
   })
   .then(function(r){ return r.json(); })

@@ -706,6 +706,7 @@ function getDashboardHtml() {
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-broadcast" onclick="showTab(\'broadcast\');return false">絞り込み送信</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-members" onclick="showTab(\'members\');return false">会員一覧</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-funnel" onclick="showTab(\'funnel\');return false">📊 ファネル分析</a></li>' +
+'<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-messages" onclick="showTab(\'messages\');return false">📝 文章管理</a></li>' +
 '</ul>' +
 
 '<!-- イベント一覧タブ -->' +
@@ -874,6 +875,14 @@ function getDashboardHtml() {
 '</div>' +
 '</div>' +
 
+'<!-- 文章管理タブ -->' +
+'<div id="tab-messages" style="display:none">' +
+'<div class="alert alert-light border small mb-3">LINEに自動送信される文章をここで編集できます。<code>{xxx}</code>の部分は実際の内容（イベント名や電話番号など）に自動で置き換わるので、そのまま残してください。</div>' +
+'<div id="msgTemplatesList"><p class="text-muted text-center mt-4">読み込み中...</p></div>' +
+'<h6 class="mt-4 mb-2">イベント別 当選・落選メッセージ</h6>' +
+'<div id="msgEventList"></div>' +
+'</div>' +
+
 '<!-- 会員一覧タブ -->' +
 '<div id="tab-members" style="display:none">' +
 '<div class="row g-3">' +
@@ -925,6 +934,8 @@ function getDashboardHtml() {
 'var membersData=[];' +
 'var mTargetIds=[];' +
 'var membersLoaded=false;' +
+'var messagesLoaded=false;' +
+'var msgTemplatesData={};' +
 'var allApplicantsData=[];' +
 'var dashConfig={};' +
 
@@ -982,11 +993,12 @@ function getDashboardHtml() {
 '}' +
 
 'function showTab(t){' +
-'["events","broadcast","members","funnel"].forEach(function(n){' +
+'["events","broadcast","members","funnel","messages"].forEach(function(n){' +
 'document.getElementById("tab-"+n).style.display=t===n?"":"none";' +
 'document.getElementById("tab-btn-"+n).classList.toggle("active",t===n);' +
 '});' +
 'if(t==="members"&&!membersLoaded){membersLoaded=true;loadMembers();}' +
+'if(t==="messages"&&!messagesLoaded){messagesLoaded=true;loadMessageTemplates();}' +
 '}' +
 
 'function spin(on){document.getElementById("spinner").style.display=on?"":"none";}' +
@@ -1169,6 +1181,75 @@ function getDashboardHtml() {
 'function toggleLookerInfo(){' +
 'var el=document.getElementById("lookerInfo");' +
 'el.style.display=el.style.display==="none"?"":"none";' +
+'}' +
+
+'function loadMessageTemplates(){' +
+'document.getElementById("msgTemplatesList").innerHTML="<p class=\'text-muted text-center mt-4\'>読み込み中...</p>";' +
+'google.script.run' +
+'.withSuccessHandler(function(data){msgTemplatesData=data;renderMessageTemplates(data);})' +
+'.withFailureHandler(function(e){document.getElementById("msgTemplatesList").innerHTML="<div class=\'alert alert-danger\'>エラー: "+(e&&e.message?e.message:String(e))+"</div>";})' +
+'.getMessageTemplates();' +
+'}' +
+
+'function escHtml(s){var d=document.createElement("div");d.innerText=s||"";return d.innerHTML;}' +
+
+'function renderMessageTemplates(data){' +
+'var html="";' +
+'(data.templates||[]).forEach(function(t,i){' +
+'html+="<div class=\'card p-3 mb-3\'>";' +
+'html+="<div class=\'d-flex justify-content-between align-items-start mb-2 flex-wrap gap-1\'>";' +
+'html+="<label class=\'fw-bold mb-0\'>"+t.label+"</label>";' +
+'if(t.vars&&t.vars.length)html+="<span class=\'text-muted small\'>変数: "+t.vars.map(function(v){return "{"+v+"}";}).join(" ")+"</span>";' +
+'html+="</div>";' +
+'html+="<textarea class=\'form-control mb-2\' rows=\'4\' id=\'tmpl_"+i+"\'>"+escHtml(t.value)+"</textarea>";' +
+'html+="<button class=\'btn btn-sm btn-primary\' onclick=\'saveTemplate("+i+")\'>保存</button> ";' +
+'html+="<span class=\'small text-muted\' id=\'tmplResult_"+i+"\'></span>";' +
+'html+="</div>";' +
+'});' +
+'document.getElementById("msgTemplatesList").innerHTML=html;' +
+
+'var evHtml="";' +
+'(data.events||[]).forEach(function(ev,i){' +
+'evHtml+="<div class=\'card p-3 mb-3\'>";' +
+'evHtml+="<div class=\'fw-bold mb-2\'>"+ev.name+"</div>";' +
+'evHtml+="<label class=\'small text-muted\'>当選メッセージ</label>";' +
+'evHtml+="<textarea class=\'form-control mb-2\' rows=\'3\' id=\'evwin_"+i+"\'>"+escHtml(ev.winMsg)+"</textarea>";' +
+'evHtml+="<label class=\'small text-muted\'>落選メッセージ</label>";' +
+'evHtml+="<textarea class=\'form-control mb-2\' rows=\'3\' id=\'evlose_"+i+"\'>"+escHtml(ev.loseMsg)+"</textarea>";' +
+'evHtml+="<button class=\'btn btn-sm btn-outline-primary\' onclick=\'saveEventMsgs("+i+")\'>保存</button> ";' +
+'evHtml+="<span class=\'small text-muted\' id=\'evResult_"+i+"\'></span>";' +
+'evHtml+="</div>";' +
+'});' +
+'document.getElementById("msgEventList").innerHTML=evHtml||"<p class=\'text-muted\'>イベントがありません</p>";' +
+'}' +
+
+'function saveTemplate(i){' +
+'var t=msgTemplatesData.templates[i];' +
+'var val=document.getElementById("tmpl_"+i).value;' +
+'var resEl=document.getElementById("tmplResult_"+i);' +
+'resEl.textContent="保存中...";' +
+'var payload={};payload[t.key]=val;' +
+'google.script.run' +
+'.withSuccessHandler(function(r){resEl.textContent=r.success?"✅ 保存しました":"エラー: "+r.error;})' +
+'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
+'.saveMessageTemplates(payload);' +
+'}' +
+
+'function saveEventMsgs(i){' +
+'var ev=msgTemplatesData.events[i];' +
+'var win=document.getElementById("evwin_"+i).value;' +
+'var lose=document.getElementById("evlose_"+i).value;' +
+'var resEl=document.getElementById("evResult_"+i);' +
+'resEl.textContent="保存中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r1){' +
+'google.script.run' +
+'.withSuccessHandler(function(r2){resEl.textContent=(r1.success&&r2.success)?"✅ 保存しました":"エラーが発生しました";})' +
+'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
+'.saveEventResultMessage(ev.resultSheetName,"lose",lose);' +
+'})' +
+'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
+'.saveEventResultMessage(ev.resultSheetName,"win",win);' +
 '}' +
 
 'function showLiffLinks(){' +

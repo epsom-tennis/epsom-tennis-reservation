@@ -184,47 +184,41 @@ function submitLiffApplication(data) {
       const namesPart = appliedParticipantNames.length > 0
         ? appliedParticipantNames.map(n => n + ' 様').join('、') + 'の'
         : '';
-      const msgParts = [`${namesPart}ご応募を受け付けました！`];
+      const msgParts = [renderTemplate_(getMsgTemplate_('header_apply'), { names: namesPart })];
 
       // オフラインイベント：当落通知あり
       if (appliedOfflineNames.length > 0) {
-        msgParts.push(
-          '【オフラインイベント】\n' +
-          appliedOfflineNames.map(n => '・' + n).join('\n') +
-          '\n\n当落結果は後日このLINEでお知らせします。\nしばらくお待ちください。'
-        );
+        msgParts.push(renderTemplate_(getMsgTemplate_('offline_apply'), {
+          events: appliedOfflineNames.map(n => '・' + n).join('\n'),
+        }));
       }
 
       // オンライン相談：全員対応・相談詳細を確認
       if (appliedOnlineNames.length > 0) {
-        const consultType = (data.onlineConsultType || '') === 'video' ? '動画' : '文章';
-        let onlinePart = '【オンライン相談】\n' +
-          appliedOnlineNames.map(n => '・' + n).join('\n') +
-          '\n\nご相談方法：' + consultType;
-        if ((data.onlineConsultType || '') === 'video') {
+        const isVideo = (data.onlineConsultType || '') === 'video';
+        const eventsStr = appliedOnlineNames.map(n => '・' + n).join('\n');
+        if (isVideo) {
           const phoneConsult = data.onlinePhoneConsult || '';
-          onlinePart += '\n電話相談：' + (phoneConsult || '未選択');
+          let phoneInfo = '\n電話相談：' + (phoneConsult || '未選択');
           if (phoneConsult === '希望する' && data.onlineConsultPhone) {
-            onlinePart += '（' + data.onlineConsultPhone + '）';
+            phoneInfo += '（' + data.onlineConsultPhone + '）';
           }
+          msgParts.push(renderTemplate_(getMsgTemplate_('online_video_apply'), { events: eventsStr, phoneInfo }));
+        } else {
+          msgParts.push(renderTemplate_(getMsgTemplate_('online_text_apply'), { events: eventsStr }));
         }
-        onlinePart += '\n\nご相談内容を受け付けました。\n配信にてお答えしますので、お楽しみに！';
-        msgParts.push(onlinePart);
       }
 
       pushMessage(data.userId, msgParts.join('\n\n'));
 
       // 動画相談の場合はLINEへの動画送信を依頼
       if ((data.onlineConsultType || '') === 'video') {
-        pushMessage(data.userId,
-          `動画をこのLINEに直接送ってください 🎥\n` +
-          `受け取り次第、コーチが確認します。`
-        );
+        pushMessage(data.userId, getMsgTemplate_('video_request'));
       }
       const nowStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MM/dd HH:mm');
       notifyStaff(`✅ LIFF応募 ${nowStr}\n${appliedParticipantNames.join('、')}（計${appliedParticipantNames.length}名）\n${appliedNames.join('、')}`);
     } else {
-      pushMessage(data.userId, 'プロフィール情報を更新しました。ありがとうございます！');
+      pushMessage(data.userId, getMsgTemplate_(data.isNewRegistration ? 'registration_done' : 'profile_done'));
     }
 
     return { success: true, appliedEvents: appliedNames };
