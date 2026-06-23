@@ -148,7 +148,8 @@ function getMsgTemplate_(key) {
     const data = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0]) === key) {
-        const val = String(data[i][2] || '').trim();
+        // 誤って<br>タグが入力されていても改行として機能するように変換する（LINEはプレーンテキストのため<br>は表示されない）
+        const val = String(data[i][2] || '').trim().replace(/<br\s*\/?>/gi, '\n');
         return val || (def ? def.default : '');
       }
     }
