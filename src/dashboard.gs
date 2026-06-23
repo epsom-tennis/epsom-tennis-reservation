@@ -323,23 +323,18 @@ function getFilteredUsers(appSheetName, resultSheetName, status) {
   const membersSheet = getSheet(SHEET.MEMBERS);
   if (!membersSheet || membersSheet.getLastRow() <= 1) return [];
 
-  // 応募済みUser IDのセットを構築
+  // 応募済みUser IDのセット・当落ステータスのマップを構築
+  // 当落シートを基準にする（Google FormとLIFF両方の応募がここに集約される）
   const submittedSet = new Set();
-  const appSheet = getSheet(appSheetName);
-  if (appSheet && appSheet.getLastRow() > 1) {
-    const appData = appSheet.getDataRange().getValues();
-    for (let i = 1; i < appData.length; i++) {
-      if (appData[i][18]) submittedSet.add(String(appData[i][18]));
-    }
-  }
-
-  // 当落ステータスのマップを構築
   const resultMap = {};
   const resultSheet = getSheet(resultSheetName);
   if (resultSheet && resultSheet.getLastRow() > 1) {
     const resultData = resultSheet.getDataRange().getValues();
     for (let i = 1; i < resultData.length; i++) {
-      resultMap[String(resultData[i][1])] = String(resultData[i][2] || '');
+      const userId = String(resultData[i][1] || '');
+      if (!userId) continue;
+      submittedSet.add(userId);
+      resultMap[userId] = String(resultData[i][2] || '');
     }
   }
 
