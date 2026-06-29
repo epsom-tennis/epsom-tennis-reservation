@@ -23,10 +23,14 @@ function doPost(e) {
         handlePostback(event);
       } else if (event.type === 'message' && event.message.type === 'text') {
         const text = event.message.text.trim();
+        const urlMatch = text.match(/https?:\/\/\S+/i);
         if (text === '応募') {
           handleOubo(event);
         } else if (text === '応募状況') {
           handleOuboStatus(event);
+        } else if (urlMatch) {
+          // ギガファイル便等の動画アップロードURLが文中のどこにあっても拾う（前後に説明文があってもOK）
+          handleVideoUrlMessage(event, urlMatch[0]);
         }
       } else if (event.type === 'message' && event.message.type === 'video') {
         handleVideoMessage(event);
@@ -174,59 +178,63 @@ function handleOuboStatus(event) {
   logAction(userId, '応募状況照会', '', '');
 }
 
-// 動画メッセージを受信：動画待ち応募行を探してDriveに保存
-function handleVideoMessage(event) {
-  const userId = event.source.userId;
-  const messageId = event.message.id;
-
-  // 全オンラインイベントのシートから「動画待ち」行を検索
+// 全オンラインイベントのシートから、指定ユーザーの動画相談応募行を検索する（動画状態は問わない＝応募直後に限らずいつでも紐付けられる）
+// 同一ユーザーが複数の動画相談に応募している場合は最後に見つかった行（シート上もっとも下＝最新）を採用する
+// （動画メッセージ・動画URLテキストの両方の受信処理から共通で使う）
+function findVideoApplicationRow_(userId) {
   const allEvents = getAllEvents();
-  let foundSheet = null;
-  let foundRowIdx = -1;
-  let broadcastName = '';
-
+  let found = null;
   for (const ev of allEvents) {
     if ((ev.eventType || 'オフライン') !== 'オンライン') continue;
     const sheet = getSheet(ev.resultSheetName);
     if (!sheet) continue;
     const rows = sheet.getDataRange().getValues();
     for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][1]) === userId &&
-          String(rows[i][11]) === 'video' &&
-          String(rows[i][14]) === '待ち') {
-        foundSheet = sheet;
-        foundRowIdx = i + 1; // シートは1始まり
-        broadcastName = String(rows[i][9] || '');
-        break;
+      if (String(rows[i][1]) === userId && String(rows[i][12]) === 'video') {
+        found = { sheet, rowIdx: i + 1, broadcastName: String(rows[i][10] || '') }; // シートは1始まり
       }
     }
-    if (foundSheet) break;
+  }
+  return found;
+}
+
+// 動画メッセージを受信：内容の保存は行わず、応募行が見つかれば「受信済み」を記録して自動返信するだけのシンプルな処理
+// 動画本体はLINEのトーク上に残るため、担当者はLINEアプリで直接確認する運用とする
+function handleVideoMessage(event) {
+  const userId = event.source.userId;
+  const found = findVideoApplicationRow_(userId);
+
+  if (found) {
+    found.sheet.getRange(found.rowIdx, 16).setValue('受信済み'); // P列：動画状態
+    logAction(userId, '動画受信', '', found.broadcastName);
+  } else {
+    // 応募記録に紐付けできない動画（応募前・応募と無関係に送られたもの）→ スタッフに通知してLINE上で内容を確認してもらう
+    notifyStaff(`🎥 未紐付けの動画を受信しました\nUserID: ${userId}\n\n応募記録が見つからないため、LINEのトークで内容をご確認ください。`);
+    logAction(userId, '動画受信_未紐付け', '', '');
   }
 
-  if (!foundSheet) return; // 動画待ちの応募なし → 無視
-
-  // LINE Content API で動画バイナリを取得
-  const token = getProp('LINE_CHANNEL_ACCESS_TOKEN');
-  const contentRes = UrlFetchApp.fetch(
-    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
-    { headers: { 'Authorization': `Bearer ${token}` }, muteHttpExceptions: true }
-  );
-
-  // Google Drive の指定フォルダに保存（VIDEO_FOLDER_ID 未設定ならマイドライブ直下）
-  const folderId = getProp('VIDEO_FOLDER_ID');
-  const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
-  const stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd_HHmmss');
-  const fileName = `動画相談_${broadcastName || userId}_${stamp}.mp4`;
-  const file = folder.createFile(contentRes.getBlob().setName(fileName));
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  const fileUrl = `https://drive.google.com/file/d/${file.getId()}/view`;
-
-  // スプレッドシート更新（O列=15: 動画状態、P列=16: 動画URL）
-  foundSheet.getRange(foundRowIdx, 15).setValue('受信済み');
-  foundSheet.getRange(foundRowIdx, 16).setValue(fileUrl);
-
   replyMessage(event.replyToken, getMsgTemplate_('video_received'));
-  logAction(userId, '動画受信', '', broadcastName);
+}
+
+// 動画URL（ギガファイル便等のアップロードサービスのリンク）をテキストで受信
+// 動画相談の応募行が見つかれば直接保存して紐付け、見つからない場合もスタッフに通知する
+// LINEから動画ファイルを直接受け取る場合と異なりサイズ制限が無いため、ファイルサイズチェック・Drive保存は行わない
+function handleVideoUrlMessage(event, url) {
+  const userId = event.source.userId;
+  const found = findVideoApplicationRow_(userId);
+
+  if (found) {
+    // スプレッドシート更新（P列=16: 動画状態、Q列=17: 動画URL）
+    found.sheet.getRange(found.rowIdx, 16).setValue('受信済み');
+    found.sheet.getRange(found.rowIdx, 17).setValue(url);
+    logAction(userId, '動画URL受信', '', found.broadcastName);
+  } else {
+    // 応募記録に紐付けできないURL（応募前・関係ないリンク等）→ スタッフに通知して手動確認してもらう
+    notifyStaff(`🔗 未紐付けのURLを受信しました\nUserID: ${userId}\n${url}\n\n応募記録が見つからないため、内容をご確認ください。`);
+    logAction(userId, '動画URL受信_未紐付け', '', url);
+  }
+
+  replyMessage(event.replyToken, getMsgTemplate_('video_url_received'));
 }
 
 // postbackイベントのルーティング（参加確認ボタン）
@@ -249,24 +257,34 @@ function handlePostback(event) {
 }
 
 // 「参加します」postback処理：J列を「確認済」に更新
+// 参加確認期限（設定シートV列）を過ぎている場合は「期限切れキャンセル」として扱い、期限切れメッセージを返す
 function handleParticipationConfirm(replyToken, sheetName, baseUserId) {
   const sheet = getSheet(sheetName);
   if (!sheet) { replyMessage(replyToken, '処理中にエラーが発生しました。'); return; }
+
+  const ev = getAllEvents().find(e => e.resultSheetName === sheetName);
+  const isExpired = !!(ev && ev.confirmDeadlineAt && new Date() > ev.confirmDeadlineAt);
+  const statusValue = isExpired ? '期限切れキャンセル' : '確認済';
 
   const data = sheet.getDataRange().getValues();
   let updated = 0;
   for (let i = 1; i < data.length; i++) {
     const uid = String(data[i][1] || '');
     if (uid.replace(/_p\d+$/, '') === baseUserId && String(data[i][2]) === '当選') {
-      sheet.getRange(i + 1, 10).setValue('確認済'); // J列
+      sheet.getRange(i + 1, 10).setValue(statusValue); // J列
       updated++;
     }
   }
 
   const eventName = sheetName.replace(/_当落$/, '');
   if (updated > 0) {
-    replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_confirmed'), { eventName }));
-    logAction(baseUserId, '参加確認', eventName, '');
+    if (isExpired) {
+      replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_expired'), { eventName }));
+      logAction(baseUserId, '参加確認_期限切れ', eventName, '');
+    } else {
+      replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_confirmed'), { eventName }));
+      logAction(baseUserId, '参加確認', eventName, '');
+    }
   } else {
     replyMessage(replyToken, '既に処理済みか、対象のデータが見つかりませんでした。');
   }

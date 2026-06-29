@@ -96,10 +96,13 @@ function submitLiffApplication(data) {
 
     for (const p of participants) {
       const fullName = ((p.familyName || '') + ' ' + (p.givenName || '')).trim();
-      const furigana = ((p.familyNameKana || '') + ' ' + (p.givenNameKana || '')).trim();
+      // フリガナはひらがな入力でも全角カタカナに統一、電話番号はハイフン等を除去して半角数字のみに統一する
+      const furigana = toFullWidthKatakana_(((p.familyNameKana || '') + ' ' + (p.givenNameKana || '')).trim());
       const areaStr  = (p.tennisArea || []).join('・');
       const envStr   = (p.tennisEnv  || []).join('・');
       const pUserId  = p.userId;
+      const phone     = normalizePhone_(p.phone || '');
+      const emergency = normalizePhone_(p.emergency || '');
 
       // 会員マスタを更新または新規追加
       const membersData = membersSheet.getDataRange().getValues();
@@ -114,9 +117,9 @@ function submitLiffApplication(data) {
         membersSheet.getRange(memberRow, 8).setValue(p.gender || '');
         membersSheet.getRange(memberRow, 9).setValue(p.tennisLevel || '');
         membersSheet.getRange(memberRow, 10).setValue(p.email || '');
-        membersSheet.getRange(memberRow, 11).setValue(p.phone || '');
+        membersSheet.getRange(memberRow, 11).setValue(phone);
         membersSheet.getRange(memberRow, 12).setValue(furigana);
-        membersSheet.getRange(memberRow, 13).setValue(p.emergency || '');
+        membersSheet.getRange(memberRow, 13).setValue(emergency);
         membersSheet.getRange(memberRow, 14).setValue(p.tennisFreq || '');
         membersSheet.getRange(memberRow, 15).setValue(p.tennisHistory || '');
         membersSheet.getRange(memberRow, 16).setValue(areaStr);
@@ -124,8 +127,8 @@ function submitLiffApplication(data) {
       } else {
         membersSheet.appendRow([
           new Date(), pUserId, '', 'LIFF登録', fullName, new Date(),
-          p.age || '', p.gender || '', p.tennisLevel || '', p.email || '', p.phone || '', furigana,
-          p.emergency || '', p.tennisFreq || '', p.tennisHistory || '', areaStr, envStr,
+          p.age || '', p.gender || '', p.tennisLevel || '', p.email || '', phone, furigana,
+          emergency, p.tennisFreq || '', p.tennisHistory || '', areaStr, envStr,
         ]);
       }
 
@@ -149,16 +152,19 @@ function submitLiffApplication(data) {
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
         const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
         const isVideo = isOnline && (data.onlineConsultType || '') === 'video';
+        const onlineConsultPhoneNorm = normalizePhone_(data.onlineConsultPhone || '');
+        // J列「参加確認」はオンライン・オフライン共通の基本列（応募時点では空欄、当落確定後に運用される）
         resultSheet.appendRow(
-          [fullName, pUserId, '', '', '', evCoach, evSrcStr, evRsnStr, new Date()]
+          [fullName, pUserId, '', '', '', evCoach, evSrcStr, evRsnStr, new Date(), '']
           .concat(isOnline ? [
-            data.onlineBroadcastName || '',  // J: 配信名
-            data.onlineConcern       || '',  // K: お悩み内容
-            data.onlineConsultType   || '',  // L: 相談方法
-            data.onlinePhoneConsult  || '',  // M: 電話相談希望
-            data.onlineConsultPhone  || '',  // N: 電話番号
-            isVideo ? '待ち' : '',           // O: 動画状態
-            '',                              // P: 動画URL
+            data.onlineBroadcastName || '',  // K: 配信名
+            data.onlineConcern       || '',  // L: お悩み内容
+            data.onlineConsultType   || '',  // M: 相談方法
+            data.onlinePhoneConsult  || '',  // N: 電話相談希望
+            onlineConsultPhoneNorm,          // O: 電話番号
+            isVideo ? '待ち' : '',           // P: 動画状態
+            '',                              // Q: 動画URL
+            '未確認',                        // R: 対応状況（スタッフ管理用・未確認/確認中/回答済）
           ] : [])
         );
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
@@ -201,7 +207,7 @@ function submitLiffApplication(data) {
           const phoneConsult = data.onlinePhoneConsult || '';
           let phoneInfo = '\n電話相談：' + (phoneConsult || '未選択');
           if (phoneConsult === '希望する' && data.onlineConsultPhone) {
-            phoneInfo += '（' + data.onlineConsultPhone + '）';
+            phoneInfo += '（' + normalizePhone_(data.onlineConsultPhone) + '）';
           }
           msgParts.push(renderTemplate_(getMsgTemplate_('online_video_apply'), { events: eventsStr, phoneInfo }));
         } else {

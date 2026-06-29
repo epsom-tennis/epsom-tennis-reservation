@@ -87,13 +87,19 @@ const MESSAGE_TEMPLATE_DEFS = [
     key: 'video_request',
     label: '動画送信のお願い（動画相談応募の直後に追加送信）',
     vars: [],
-    default: '動画をこのLINEに直接送ってください 🎥\n受け取り次第、コーチが確認します。',
+    default: '動画をこのLINEに直接送ってください 🎥\nファイルサイズが大きい場合は、ギガファイル便などのアップロードサービスのURLを送っていただいても構いません。\n受け取り次第、コーチが確認します。',
   },
   {
     key: 'video_received',
     label: '動画受信確認（動画を送ってもらった直後の自動返信）',
     vars: [],
-    default: '動画を受け取りました！ありがとうございます 🎾\nコーチが確認次第、配信でお答えします。',
+    default: '動画の送信ありがとうございます！🎾\n担当者が確認のうえ、ご連絡いたします。',
+  },
+  {
+    key: 'video_url_received',
+    label: 'URL受信確認（ギガファイル便等のURLを送ってもらった直後の自動返信。動画と無関係なURLが届く可能性もあるため汎用的な文言にしている）',
+    vars: [],
+    default: 'URLの送付を確認しました！ありがとうございます 🎾\n担当者が確認のうえ、ご連絡いたします。',
   },
   {
     key: 'registration_done',
@@ -112,6 +118,12 @@ const MESSAGE_TEMPLATE_DEFS = [
     label: '参加確定（当選者が「参加します」を押した直後の返信）',
     vars: ['eventName'],
     default: '【参加確定】\n「{eventName}」へのご参加を確認しました！\n当日お会いできることを楽しみにしております 🎾',
+  },
+  {
+    key: 'participation_expired',
+    label: '参加確認期限切れ（期限を過ぎて「参加します」が押された場合の返信）',
+    vars: ['eventName'],
+    default: '【期限切れ】\n「{eventName}」の参加確認期限を過ぎているため、キャンセル扱いとなりました。\nご連絡が必要な場合は、こちらのLINEよりお問い合わせください。',
   },
   {
     key: 'participation_canceled',

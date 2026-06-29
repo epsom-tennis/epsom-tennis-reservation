@@ -93,7 +93,7 @@ function createNewEvent(data) {
   try {
     const {
       name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
-      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline,
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
     } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
     if (!name) return { success: false, error: 'イベント名は必須です。' };
@@ -119,6 +119,11 @@ function createNewEvent(data) {
       openingDateObj = new Date(openingDate);
       if (isNaN(openingDateObj.getTime())) return { success: false, error: '応募開始日の形式が正しくありません（YYYY/MM/DD）。' };
     }
+    let confirmDeadlineAtObj = null;
+    if (confirmDeadlineAt) {
+      confirmDeadlineAtObj = new Date(confirmDeadlineAt);
+      if (isNaN(confirmDeadlineAtObj.getTime())) return { success: false, error: '参加確認期限（日時）の形式が正しくありません。' };
+    }
 
     // 同名イベントの重複チェック
     const configData = configSheet.getDataRange().getValues();
@@ -141,8 +146,9 @@ function createNewEvent(data) {
     if (!resultSheet) {
       resultSheet = ss.insertSheet(resultSheetName);
       const baseHeaders = ['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認'];
+      // 実際の応募データ（submitLiffApplication）はJ列（参加確認）まではオンライン・オフライン共通。オンラインのみK列以降に「配信名,お悩み内容,相談方法,電話相談希望,電話番号,動画状態,動画URL,対応状況」の順で書き込まれる
       const onlineHeaders = (eventType || 'オフライン') === 'オンライン'
-        ? ['配信名（ひらがな）', 'お悩み内容', '動画URL', '電話相談希望', '電話番号']
+        ? ['配信名（ひらがな）', 'お悩み内容', '相談方法', '電話相談希望', '電話番号', '動画状態', '動画URL', '対応状況']
         : [];
       resultSheet.appendRow(baseHeaders.concat(onlineHeaders));
       resultSheet.setFrozenRows(1);
@@ -152,7 +158,7 @@ function createNewEvent(data) {
     configSheet.appendRow([
       name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
       eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '', '',
-      meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '',
+      meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '', confirmDeadlineAtObj || '',
     ]);
 
     return {
@@ -168,12 +174,50 @@ function createNewEvent(data) {
   }
 }
 
+// 【一度だけ実行】既存バグの修正：オンラインイベントの当落シートはヘッダーがJ列=参加確認・K列以降=配信名...対応状況だが、
+// submitLiffApplicationの実データ書き込みが1列足りずJ列以降に配信名等を書いていたため、参加確認のJ列が配信名で上書きされる事故があった。
+// 既存データ（ヘッダー行は除く）のJ列以降を1列右にシフトしてヘッダーと一致させる。スプレッドシートのメニューから手動実行する。
+function migrateOnlineColumnShift() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  const events = getAllEvents().filter(ev => ev.eventType === 'オンライン');
+  if (events.length === 0) { ui.alert('オンラインイベントが見つかりませんでした。'); return; }
+
+  const targets = events
+    .map(ev => ss.getSheetByName(ev.resultSheetName))
+    .filter(sheet => sheet && sheet.getLastRow() > 1);
+
+  if (targets.length === 0) { ui.alert('修正対象のデータがあるオンラインイベントシートが見つかりませんでした。'); return; }
+
+  const confirm = ui.alert(
+    '列ズレ修正の実行確認',
+    `対象シート（${targets.length}件）：\n` + targets.map(s => '・' + s.getName()).join('\n') +
+    '\n\n各シートのJ列（参加確認）以降にあるデータを1列右にずらし、ヘッダーの位置と一致させます。\n' +
+    '※この処理は一度だけ実行してください。実行済みのシートに再度実行すると、データがさらにずれて壊れます。\n\n実行しますか？',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  const ONLINE_COL_COUNT = 8; // 配信名,お悩み内容,相談方法,電話相談希望,電話番号,動画状態,動画URL,対応状況
+  let migratedCount = 0;
+  for (const sheet of targets) {
+    const numRows = sheet.getLastRow() - 1; // ヘッダー行を除く
+    const srcRange = sheet.getRange(2, 10, numRows, ONLINE_COL_COUNT); // J2以降（データ行のみ）
+    const values = srcRange.getValues();
+    sheet.getRange(2, 11, numRows, ONLINE_COL_COUNT).setValues(values); // K列以降へ1列右シフト
+    sheet.getRange(2, 10, numRows, 1).setValue(''); // 元のJ列（本来は参加確認用）を空欄化
+    migratedCount++;
+  }
+
+  ui.alert(`修正完了：${migratedCount}件のシートのデータを修正しました。`);
+}
+
 // ダッシュボードから既存イベントの詳細情報を編集する（google.script.runから呼び出す）
 // appSheetNameをキーに対象行を特定し、A〜D列（イベント名・日付・シート名）以外の詳細項目を上書きする
 function updateEventDetails(data) {
   try {
     const { appSheetName, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
-      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline } = data;
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -208,6 +252,7 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 19).setValue(lockerInfo || '');
     configSheet.getRange(rowIdx, 20).setValue(facilityUrl || '');
     configSheet.getRange(rowIdx, 21).setValue(confirmDeadline || '');
+    configSheet.getRange(rowIdx, 22).setValue(toDateOrBlank(confirmDeadlineAt));
 
     return { success: true };
   } catch (err) {

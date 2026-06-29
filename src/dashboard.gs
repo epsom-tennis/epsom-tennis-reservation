@@ -184,6 +184,7 @@ function getEventsData() {
       lockerInfo:      ev.lockerInfo      || '',
       facilityUrl:     ev.facilityUrl     || '',
       confirmDeadline: ev.confirmDeadline || '',
+      confirmDeadlineAtISO: ev.confirmDeadlineAt ? Utilities.formatDate(ev.confirmDeadlineAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -764,6 +765,8 @@ function getDashboardHtml() {
 '<input type="text" class="form-control" id="ne_fee" placeholder="EPSOM&CO.様のサポートにより、無料でご参加いただけます！"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限</label>' +
 '<input type="text" class="form-control" id="ne_deadline" placeholder="5月27日（水）12:00"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加確認期限（自動キャンセル日時）<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="datetime-local" class="form-control" id="ne_deadline_at"><div class="form-text">この日時を過ぎて「参加します」が押された場合、自動的に期限切れとして扱います</div></div>' +
 '<div class="col-12"><label class="form-label fw-bold">更衣室について</label>' +
 '<textarea class="form-control" id="ne_locker" rows="2" placeholder="受付でのお声がけは不要です。..."></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">施設URL</label>' +
@@ -807,6 +810,7 @@ function getDashboardHtml() {
 '<div class="col-6"><label class="form-label fw-bold">参加費</label><input type="text" class="form-control" id="ee_fee"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">持ち物</label><textarea class="form-control" id="ee_items" rows="2"></textarea></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限</label><input type="text" class="form-control" id="ee_deadline"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">参加確認期限（自動キャンセル日時）</label><input type="datetime-local" class="form-control" id="ee_deadline_at"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">更衣室について</label><textarea class="form-control" id="ee_locker" rows="2"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">施設URL</label><input type="url" class="form-control" id="ee_facility_url"></div>' +
 '</div></div>' +
@@ -1015,7 +1019,7 @@ function getDashboardHtml() {
 'document.getElementById("ne_type").value="オフライン";' +
 'onEventTypeChange();' +
 '["ne_name","ne_opening","ne_closing","ne_date","ne_venue","ne_coach","ne_desc","ne_channel_url","ne_opening_online","ne_closing_online",' +
-'"ne_meeting","ne_court","ne_items","ne_fee","ne_deadline","ne_locker","ne_facility_url"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
+'"ne_meeting","ne_court","ne_items","ne_fee","ne_deadline","ne_deadline_at","ne_locker","ne_facility_url"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
 '["ne_time_start","ne_time_end"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
 '}' +
 'function onEventTypeChange(){' +
@@ -1030,7 +1034,7 @@ function getDashboardHtml() {
 'var coach=document.getElementById("ne_coach").value.trim();' +
 'var desc=document.getElementById("ne_desc").value.trim();' +
 'var date="",closing="",opening="",time="",venue="",channelUrl="";' +
-'var meeting="",court="",items="",fee="",deadline="",locker="",facilityUrl="";' +
+'var meeting="",court="",items="",fee="",deadline="",deadlineAt="",locker="",facilityUrl="";' +
 'if(isOnline){' +
 'channelUrl=(document.getElementById("ne_channel_url")||{}).value||"";' +
 'opening=((document.getElementById("ne_opening_online")||{}).value||"").replace(/-/g,"/");' +
@@ -1048,6 +1052,7 @@ function getDashboardHtml() {
 'items=document.getElementById("ne_items").value.trim();' +
 'fee=document.getElementById("ne_fee").value.trim();' +
 'deadline=document.getElementById("ne_deadline").value.trim();' +
+'deadlineAt=document.getElementById("ne_deadline_at").value;' +
 'locker=document.getElementById("ne_locker").value.trim();' +
 'facilityUrl=document.getElementById("ne_facility_url").value.trim();' +
 '}' +
@@ -1061,7 +1066,7 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
 '.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType,' +
-'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,lockerInfo:locker,facilityUrl:facilityUrl});' +
+'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,lockerInfo:locker,facilityUrl:facilityUrl});' +
 '}' +
 
 'function openEditEventModal(idx,e){' +
@@ -1082,6 +1087,7 @@ function getDashboardHtml() {
 'document.getElementById("ee_fee").value=ev.fee||"";' +
 'document.getElementById("ee_items").value=ev.items||"";' +
 'document.getElementById("ee_deadline").value=ev.confirmDeadline||"";' +
+'document.getElementById("ee_deadline_at").value=ev.confirmDeadlineAtISO||"";' +
 'document.getElementById("ee_locker").value=ev.lockerInfo||"";' +
 'document.getElementById("ee_facility_url").value=ev.facilityUrl||"";' +
 'document.getElementById("ee_channel_url").value=ev.channelUrl||"";' +
@@ -1116,6 +1122,7 @@ function getDashboardHtml() {
 'payload.fee=document.getElementById("ee_fee").value.trim();' +
 'payload.items=document.getElementById("ee_items").value.trim();' +
 'payload.confirmDeadline=document.getElementById("ee_deadline").value.trim();' +
+'payload.confirmDeadlineAt=document.getElementById("ee_deadline_at").value;' +
 'payload.lockerInfo=document.getElementById("ee_locker").value.trim();' +
 'payload.facilityUrl=document.getElementById("ee_facility_url").value.trim();' +
 '}' +

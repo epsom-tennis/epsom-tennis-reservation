@@ -24,7 +24,20 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
-// 設定シートO〜U列ヘッダーを補充する（当落メッセージの差し込み用イベント詳細項目）
+// ひらがなを全角カタカナに変換する（フリガナ入力の表記ゆれを統一するため。U+3041-3096のひらがな範囲を+0x60シフト）
+function toFullWidthKatakana_(str) {
+  if (!str) return '';
+  return String(str).replace(/[ぁ-ゖ]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+}
+
+// 電話番号を「全角→半角」「ハイフン等の除去」で半角数字のみに統一する
+function normalizePhone_(str) {
+  if (!str) return '';
+  const halfWidth = String(str).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+  return halfWidth.replace(/[^0-9]/g, '');
+}
+
+// 設定シートO〜V列ヘッダーを補充する（当落メッセージの差し込み用イベント詳細項目）
 function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 15).getValue()) {
     sheet.getRange(1, 15).setValue('集合時間');
@@ -34,6 +47,10 @@ function ensureEventDetailColumns_(sheet) {
     sheet.getRange(1, 19).setValue('更衣室について');
     sheet.getRange(1, 20).setValue('施設URL');
     sheet.getRange(1, 21).setValue('参加確認期限');
+  }
+  // V列：参加確認期限の実日時（期限切れ自動キャンセル判定用）。表示用テキスト（U列）とは別管理
+  if (!sheet.getRange(1, 22).getValue()) {
+    sheet.getRange(1, 22).setValue('参加確認期限（日時・自動キャンセル用）');
   }
 }
 
@@ -68,14 +85,15 @@ function getAllEvents() {
     const fee              = String(data[i][17] || '').trim(); // R列：参加費
     const lockerInfo       = String(data[i][18] || '').trim(); // S列：更衣室について
     const facilityUrl      = String(data[i][19] || '').trim(); // T列：施設URL
-    const confirmDeadline  = String(data[i][20] || '').trim(); // U列：参加確認期限
+    const confirmDeadline  = String(data[i][20] || '').trim(); // U列：参加確認期限（表示用テキスト）
+    const confirmDeadlineAt = data[i][21] ? new Date(data[i][21]) : null; // V列：参加確認期限の実日時（期限切れ自動キャンセル判定用）
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
     events.push({
       name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg,
       eventTime, venue, coachName, description, eventType, channelUrl, status,
-      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline,
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
     });
   }
   return events;
@@ -105,9 +123,18 @@ function linePost(endpoint, payload) {
     muteHttpExceptions: true,
   });
 
-  const result = JSON.parse(res.getContentText());
-  if (result.message) {
-    Logger.log(`LINE API error [${endpoint}]: ${result.message}`);
+  // ステータス・本文をエラー時に必ずログへ残す（応答がJSONでない異常時もここで捕捉する）
+  const status = res.getResponseCode();
+  const bodyText = res.getContentText();
+  let result = {};
+  try {
+    result = bodyText ? JSON.parse(bodyText) : {};
+  } catch (err) {
+    Logger.log(`LINE API応答のJSON解析失敗 [${endpoint}] status=${status} body=${bodyText}`);
+    return { message: 'JSON解析失敗', raw: bodyText };
+  }
+  if (status !== 200 || result.message) {
+    Logger.log(`LINE API error [${endpoint}] status=${status}: ${result.message || bodyText}`);
   }
   return result;
 }
@@ -172,12 +199,13 @@ function notifyStaff(text) {
   return pushMessage(groupId, text);
 }
 
-// アラートメールを ALERT_EMAIL 宛に送信
-function sendAlertEmail(subject, body) {
+// アラートメールを ALERT_EMAIL 宛に送信（attachmentsを渡すとBlobを添付する。動画相談の動画添付などで使用）
+function sendAlertEmail(subject, body, attachments) {
   const email = getProp('ALERT_EMAIL');
   if (!email) {
     Logger.log('ALERT_EMAIL未設定のためメール送信をスキップ: ' + subject);
     return;
   }
-  GmailApp.sendEmail(email, subject, body);
+  const options = attachments && attachments.length ? { attachments } : {};
+  GmailApp.sendEmail(email, subject, body, options);
 }

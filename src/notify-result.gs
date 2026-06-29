@@ -66,28 +66,34 @@ function sendResultsCore(sheet) {
     });
 
     // 当選者がいる場合は参加確認ボタン（Quick Reply）付きで送信。送る内容が無い場合（オンラインで全員落選）はスキップ
+    // 送信に失敗した場合（ブロック等でLINE APIがエラーを返した場合）も他のユーザーの処理を止めずに続行し、シートに「送信エラー」を記録する
+    let sendFailed = false;
     if (blocks.length > 0) {
       const finalMessage = blocks.join('\n\n──────────\n\n');
       const hasWinners = participants.some(p => p.result === '当選');
-      if (hasWinners) {
-        pushMessageWithQuickReply(baseUserId, finalMessage, buildParticipationQuickReply(sheetName, baseUserId));
-      } else {
-        pushMessage(baseUserId, finalMessage);
+      try {
+        const pushResult = hasWinners
+          ? pushMessageWithQuickReply(baseUserId, finalMessage, buildParticipationQuickReply(sheetName, baseUserId))
+          : pushMessage(baseUserId, finalMessage);
+        if (pushResult && pushResult.message) sendFailed = true; // LINE APIがエラーレスポンスを返した場合
+      } catch (err) {
+        Logger.log('sendResultsCore push error [' + baseUserId + ']: ' + err.toString());
+        sendFailed = true;
       }
       pushCount++;
       if (pushCount % 10 === 0) Utilities.sleep(1000);
     }
 
     for (const p of participants) {
-      sheet.getRange(p.rowIdx + 1, 4).setValue('済');
+      sheet.getRange(p.rowIdx + 1, 4).setValue(sendFailed ? '送信エラー' : '済');
       sheet.getRange(p.rowIdx + 1, 5).setValue(new Date());
       if (p.result === '当選') {
-        sheet.getRange(p.rowIdx + 1, 10).setValue('確認待ち'); // J列：参加確認
+        if (!sendFailed) sheet.getRange(p.rowIdx + 1, 10).setValue('確認待ち'); // J列：参加確認（送信エラー時は確認待ちにしない）
         winCount++;
       } else {
         loseCount++;
       }
-      logAction(baseUserId, p.result === '当選' ? '当落通知_当選' : '当落通知_落選', sheetName.replace('_当落', ''), p.name);
+      logAction(baseUserId, (sendFailed ? '送信エラー_' : '') + (p.result === '当選' ? '当落通知_当選' : '当落通知_落選'), sheetName.replace('_当落', ''), p.name);
     }
   }
 
@@ -131,5 +137,7 @@ function onOpen() {
     .createMenu('イベント管理')
     .addItem('当落通知を送信', 'sendResults')
     .addItem('新しいイベントをセットアップ', 'setupNewEvent')
+    .addSeparator()
+    .addItem('［一度だけ実行］オンライン列ズレを修正', 'migrateOnlineColumnShift')
     .addToUi();
 }
