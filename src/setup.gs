@@ -27,7 +27,7 @@ function setupSpreadsheet() {
       }
     } else {
       membersSheet = ss.insertSheet(SHEET.MEMBERS);
-      membersSheet.appendRow(['登録日時', 'User ID', '受付コード', '備考', '名前', '最終更新日時', '年齢', '性別', 'テニスレベル', 'メールアドレス', '電話番号', 'フリガナ', '緊急連絡先', 'テニス頻度', 'テニス歴', 'テニス地域', 'テニス環境']);
+      membersSheet.appendRow(['登録日時', 'User ID', '受付コード', '備考', '名前', '最終更新日時', '年齢', '性別', 'テニスレベル', 'メールアドレス', '電話番号', 'フリガナ', '緊急連絡先', 'テニス頻度', 'テニス歴', 'テニス地域', 'テニス環境', '生年月日', '都道府県']);
       membersSheet.setFrozenRows(1);
     }
   }
@@ -48,6 +48,11 @@ function setupSpreadsheet() {
     membersSheet.getRange(1, 15).setValue('テニス歴');
     membersSheet.getRange(1, 16).setValue('テニス地域');
     membersSheet.getRange(1, 17).setValue('テニス環境');
+  }
+  // R〜S列ヘッダー（生年月日・都道府県）
+  if (membersSheet.getLastRow() > 0 && !membersSheet.getRange(1, 18).getValue()) {
+    membersSheet.getRange(1, 18).setValue('生年月日');
+    membersSheet.getRange(1, 19).setValue('都道府県');
   }
 
   // 設定シートのG〜J列ヘッダーを追加（イベント詳細フィールド）

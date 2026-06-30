@@ -70,6 +70,8 @@ function extractMemberRow_(row) {
     tennisHistory: String(row[14] || ''),
     tennisArea:    String(row[15] || ''),
     tennisEnv:     String(row[16] || ''),
+    birthDate:     String(row[17] || ''),
+    prefecture:    String(row[18] || ''),
   };
 }
 
@@ -117,19 +119,27 @@ function submitLiffApplication(data) {
         membersSheet.getRange(memberRow, 8).setValue(p.gender || '');
         membersSheet.getRange(memberRow, 9).setValue(p.tennisLevel || '');
         membersSheet.getRange(memberRow, 10).setValue(p.email || '');
-        membersSheet.getRange(memberRow, 11).setValue(phone);
+        // 電話番号は数値扱いされると頭の0が消えるため、書式をテキスト固定してから書き込む
+        membersSheet.getRange(memberRow, 11).setNumberFormat('@').setValue(phone);
         membersSheet.getRange(memberRow, 12).setValue(furigana);
-        membersSheet.getRange(memberRow, 13).setValue(emergency);
+        membersSheet.getRange(memberRow, 13).setNumberFormat('@').setValue(emergency);
         membersSheet.getRange(memberRow, 14).setValue(p.tennisFreq || '');
         membersSheet.getRange(memberRow, 15).setValue(p.tennisHistory || '');
         membersSheet.getRange(memberRow, 16).setValue(areaStr);
         membersSheet.getRange(memberRow, 17).setValue(envStr);
+        membersSheet.getRange(memberRow, 18).setValue(p.birthDate || '');
+        membersSheet.getRange(memberRow, 19).setValue(p.prefecture || '');
       } else {
         membersSheet.appendRow([
           new Date(), pUserId, '', 'LIFF登録', fullName, new Date(),
           p.age || '', p.gender || '', p.tennisLevel || '', p.email || '', phone, furigana,
           emergency, p.tennisFreq || '', p.tennisHistory || '', areaStr, envStr,
+          p.birthDate || '', p.prefecture || '',
         ]);
+        // appendRowは数値扱いで書き込まれるため、電話番号列だけ書式をテキスト固定して再書き込みする
+        const newMemberRow = membersSheet.getLastRow();
+        membersSheet.getRange(newMemberRow, 11).setNumberFormat('@').setValue(phone);
+        membersSheet.getRange(newMemberRow, 13).setNumberFormat('@').setValue(emergency);
       }
 
       // 各選択イベントの当落シートに応募行を追加
@@ -167,6 +177,10 @@ function submitLiffApplication(data) {
             '未確認',                        // R: 対応状況（スタッフ管理用・未確認/確認中/回答済）
           ] : [])
         );
+        if (isOnline && onlineConsultPhoneNorm) {
+          // appendRowは数値扱いで書き込まれるため、電話番号列（O列=15）だけ書式をテキスト固定して再書き込みする
+          resultSheet.getRange(resultSheet.getLastRow(), 15).setNumberFormat('@').setValue(onlineConsultPhoneNorm);
+        }
         logAction(pUserId, 'LIFF応募', ev.resultSheetName.replace('_当落', ''), fullName);
         pHasNewApply = true;
         if (!appliedNames.includes(ev.name)) {
@@ -188,7 +202,7 @@ function submitLiffApplication(data) {
 
     if (appliedNames.length > 0) {
       const namesPart = appliedParticipantNames.length > 0
-        ? appliedParticipantNames.map(n => n + ' 様').join('、') + 'の'
+        ? appliedParticipantNames.map(n => n + ' 様').join('、')
         : '';
       const msgParts = [renderTemplate_(getMsgTemplate_('header_apply'), { names: namesPart })];
 

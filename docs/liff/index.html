@@ -93,6 +93,7 @@ var isFirstTimeUser = false;
 var profileAccordionOpen = false;
 var _consultParam = null;
 
+var PREF_OPTS  = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
 var AREA_OPTS  = ['東京','神奈川','千葉','埼玉','その他関東圏','関東圏外'];
 var ENV_OPTS   = ['スクールに通っている','会社のサークル','学校の部活・サークル','テニス仲間とコートを借りる'];
 var COACH_OPTS = ['知っていて、レッスンも受けたことがある','知っているがレッスンを受けたことはない','前回のイベントで知った','今回のイベントで初めて知った','その他'];
@@ -299,6 +300,8 @@ function participantSectionHtml(idx, m) {
     '<div class="fg"><label class="fl">フリガナ（苗字）<span class="req">*</span></label><input type="text" id="fK_' + idx + '" value="' + fK + '" placeholder="ヤマダ"></div>' +
     '<div class="fg"><label class="fl">フリガナ（名前）<span class="req">*</span></label><input type="text" id="gK_' + idx + '" value="' + gK + '" placeholder="タロウ"></div>' +
     '<div class="fg"><label class="fl">年齢<span class="req">*</span></label><input type="number" id="age_' + idx + '" value="' + age + '" placeholder="30" min="1" max="99" onchange="onAgeChange(' + idx + ')"></div>' +
+    '<div class="fg"><label class="fl">生年月日</label><input type="date" id="birthDate_' + idx + '" value="' + h(m.birthDate || '') + '" max="' + new Date().toISOString().slice(0,10) + '"></div>' +
+    '<div class="fg"><label class="fl">お住まいの都道府県</label><select id="pref_' + idx + '" class="form-select"><option value="">選択してください</option>' + PREF_OPTS.map(function(p){return '<option value="'+p+'"'+(m.prefecture===p?' selected':'')+'>'+p+'</option>';}).join('') + '</select></div>' +
     '<div class="fg"><label class="fl">性別<span class="req">*</span></label><div class="rlist">' + radioHtml('gnd_' + idx, ['男性','女性','その他'], m.gender || '') + '</div></div>' +
     '<div class="fg"><label class="fl">メールアドレス<span class="req">*</span></label><input type="email" id="email_' + idx + '" value="' + h(m.email || '') + '" placeholder="example@email.com"></div>' +
     '<div class="fg"><label class="fl">電話番号<span class="req">*</span></label><input type="tel" id="phone_' + idx + '" value="' + h(m.phone || '') + '" placeholder="09012345678"></div>' +
@@ -668,6 +671,8 @@ function collectParticipant(idx) {
     familyNameKana:val('fK_' + idx),
     givenNameKana: val('gK_' + idx),
     age:           val('age_' + idx),
+    birthDate:     val('birthDate_' + idx),
+    prefecture:    val('pref_' + idx),
     gender:        rv('gnd_' + idx),
     tennisLevel:   rv('lv_' + idx),
     email:         val('email_' + idx),
