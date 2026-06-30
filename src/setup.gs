@@ -99,7 +99,7 @@ function createNewEvent(data) {
     const {
       name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate,
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent,
     } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
     if (!name) return { success: false, error: 'イベント名は必須です。' };
@@ -175,7 +175,7 @@ function createNewEvent(data) {
       name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
       eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '', '',
       meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '', confirmDeadlineAtObj || '',
-      closingDateTimeAtObj || '', resultAnnouncementDateObj || '',
+      closingDateTimeAtObj || '', resultAnnouncementDateObj || '', isFreeEvent === true || isFreeEvent === 'true',
     ]);
 
     return {
@@ -331,7 +331,7 @@ function updateEventDetails(data) {
   try {
     const { appSheetName, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate } = data;
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -369,6 +369,7 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 22).setValue(toDateOrBlank(confirmDeadlineAt));
     configSheet.getRange(rowIdx, 23).setValue(toDateOrBlank(closingDateTimeAt));
     configSheet.getRange(rowIdx, 24).setValue(toDateOrBlank(resultAnnouncementDate));
+    configSheet.getRange(rowIdx, 25).setValue(isFreeEvent === true || isFreeEvent === 'true');
 
     return { success: true };
   } catch (err) {

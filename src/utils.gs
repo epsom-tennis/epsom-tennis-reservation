@@ -60,6 +60,10 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 24).getValue()) {
     sheet.getRange(1, 24).setValue('当落通知予定日');
   }
+  // Y列：無料イベントフラグ（TRUE=無料、FALSE/空=有料）
+  if (!sheet.getRange(1, 25).getValue()) {
+    sheet.getRange(1, 25).setValue('無料イベント');
+  }
 }
 
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
@@ -97,6 +101,7 @@ function getAllEvents() {
     const confirmDeadlineAt   = data[i][21] ? new Date(data[i][21]) : null; // V列：参加確認期限の実日時（期限切れ自動キャンセル判定用）
     const closingDateTimeAt   = data[i][22] ? new Date(data[i][22]) : null; // W列：募集締め切り日時（時刻込み）
     const resultAnnouncementDate = data[i][23] ? new Date(data[i][23]) : null; // X列：当落通知予定日
+    const isFreeEvent         = data[i][24] === true || String(data[i][24]).toUpperCase() === 'TRUE'; // Y列：無料イベントフラグ
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
@@ -104,7 +109,7 @@ function getAllEvents() {
       name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg,
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate,
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent,
     });
   }
   return events;

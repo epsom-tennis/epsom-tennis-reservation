@@ -131,6 +131,7 @@ function getLiffEventsJson(userId) {
       description:     ev.description || '',
       eventType:       ev.eventType   || 'オフライン',
       channelUrl:      ev.channelUrl  || '',
+      isFreeEvent:     ev.isFreeEvent === true,
       alreadyApplied:  appliedSheets.has(ev.resultSheetName),
     }));
   } catch (err) {
@@ -190,6 +191,7 @@ function getEventsData() {
       confirmDeadlineAtISO: ev.confirmDeadlineAt ? Utilities.formatDate(ev.confirmDeadlineAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       closingDateTimeAtISO: ev.closingDateTimeAt ? Utilities.formatDate(ev.closingDateTimeAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       resultAnnouncementDateISO: ev.resultAnnouncementDate ? Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'yyyy-MM-dd') : '',
+      isFreeEvent: ev.isFreeEvent === true,
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -549,7 +551,7 @@ function saveTermsContent(data) {
       sheet = ss.insertSheet(SHEET.TERMS);
     }
     sheet.clearContents();
-    const keys = ['tos_register', 'tos_offline', 'tos_online', 'media_offline', 'media_online'];
+    const keys = ['tos_register', 'tos_offline', 'tos_online', 'media_offline_free', 'media_offline_paid', 'media_online'];
     for (const key of keys) {
       if (data[key] !== undefined) sheet.appendRow([key, data[key]]);
     }
@@ -787,12 +789,13 @@ function getDashboardHtml() {
 '<div id="newEventModal" class="card p-3 mb-3" style="display:none;border:2px solid #198754">' +
 '<h6 class="mb-3">📋 新しいイベントを登録</h6>' +
 '<div class="row g-2">' +
-'<div class="col-12"><label class="form-label fw-bold">イベント種別</label>' +
+'<div class="col-8"><label class="form-label fw-bold">イベント種別</label>' +
 '<select class="form-select" id="ne_type" onchange="onEventTypeChange()">' +
 '<option value="オフライン">📍 オフライン</option>' +
 '<option value="オンライン">💻 オンライン</option>' +
 '<option value="選手交流">🤝 選手交流</option>' +
 '</select></div>' +
+'<div class="col-4 d-flex align-items-end pb-1"><div class="form-check"><input type="checkbox" class="form-check-input" id="ne_is_free"><label class="form-check-label fw-bold" for="ne_is_free">無料イベント</label></div></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント名<span class="text-danger">*</span></label>' +
 '<input type="text" class="form-control" id="ne_name" placeholder="コーチAレッスン 7月15日"></div>' +
 '<!-- オフライン専用 -->' +
@@ -858,7 +861,7 @@ function getDashboardHtml() {
 '<div id="editEventModal" class="card p-3 mb-3" style="display:none;border:2px solid #0d6efd">' +
 '<h6 class="mb-3">✏️ イベント詳細を編集</h6>' +
 '<div class="row g-2">' +
-'<div class="col-12"><div class="fw-bold" id="ee_name"></div></div>' +
+'<div class="col-12 d-flex justify-content-between align-items-center"><div class="fw-bold" id="ee_name"></div><div class="form-check"><input type="checkbox" class="form-check-input" id="ee_is_free"><label class="form-check-label fw-bold" for="ee_is_free">無料イベント</label></div></div>' +
 '<div id="ee_offline_fields" class="col-12">' +
 '<div class="row g-2">' +
 '<div class="col-6"><label class="form-label fw-bold">応募開始日</label><input type="date" class="form-control" id="ee_opening"></div>' +
@@ -1030,7 +1033,8 @@ function getDashboardHtml() {
 '<div class="col-12"><label class="form-label fw-bold">会員登録 利用規約・プライバシーポリシー</label><textarea class="form-control font-monospace" id="tos_register" rows="10"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">オフラインイベント応募 利用規約</label><textarea class="form-control font-monospace" id="tos_offline" rows="10"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">オンライン（ビデオ相談）応募規約</label><textarea class="form-control font-monospace" id="tos_online" rows="10"></textarea></div>' +
-'<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オフライン）</label><textarea class="form-control font-monospace" id="media_offline" rows="6"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オフライン・無料イベント用）</label><textarea class="form-control font-monospace" id="media_offline_free" rows="6"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オフライン・有料イベント用）</label><textarea class="form-control font-monospace" id="media_offline_paid" rows="6"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オンライン）</label><textarea class="form-control font-monospace" id="media_online" rows="6"></textarea></div>' +
 '</div></div>' +
 
@@ -1145,6 +1149,7 @@ function getDashboardHtml() {
 'deadlineAt=document.getElementById("ne_deadline_at").value;' +
 'closingAt=document.getElementById("ne_closing_at").value;' +
 'resultAnnouncement=document.getElementById("ne_result_announcement").value;' +
+'isFreeEvent=document.getElementById("ne_is_free").checked;' +
 'locker=document.getElementById("ne_locker").value.trim();' +
 'facilityUrl=document.getElementById("ne_facility_url").value.trim();' +
 '}' +
@@ -1158,7 +1163,7 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
 '.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType,' +
-'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,closingDateTimeAt:closingAt,resultAnnouncementDate:resultAnnouncement,lockerInfo:locker,facilityUrl:facilityUrl});' +
+'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,closingDateTimeAt:closingAt,resultAnnouncementDate:resultAnnouncement,isFreeEvent:isFreeEvent,lockerInfo:locker,facilityUrl:facilityUrl});' +
 '}' +
 
 'function openEditEventModal(idx,e){' +
@@ -1178,6 +1183,7 @@ function getDashboardHtml() {
 'document.getElementById("ee_court").value=ev.courtType||"";' +
 'document.getElementById("ee_fee").value=ev.fee||"";' +
 'document.getElementById("ee_items").value=ev.items||"";' +
+'document.getElementById("ee_is_free").checked=!!ev.isFreeEvent;' +
 'document.getElementById("ee_closing_at").value=ev.closingDateTimeAtISO||"";' +
 'document.getElementById("ee_result_announcement").value=ev.resultAnnouncementDateISO||"";' +
 'document.getElementById("ee_deadline").value=ev.confirmDeadline||"";' +
@@ -1215,6 +1221,7 @@ function getDashboardHtml() {
 'payload.courtType=document.getElementById("ee_court").value.trim();' +
 'payload.fee=document.getElementById("ee_fee").value.trim();' +
 'payload.items=document.getElementById("ee_items").value.trim();' +
+'payload.isFreeEvent=document.getElementById("ee_is_free").checked;' +
 'payload.closingDateTimeAt=document.getElementById("ee_closing_at").value;' +
 'payload.resultAnnouncementDate=document.getElementById("ee_result_announcement").value;' +
 'payload.confirmDeadline=document.getElementById("ee_deadline").value.trim();' +
@@ -1475,7 +1482,7 @@ function getDashboardHtml() {
 '}' +
 
 'function loadTerms(){' +
-'var keys=["tos_register","tos_offline","tos_online","media_offline","media_online"];' +
+'var keys=["tos_register","tos_offline","tos_online","media_offline_free","media_offline_paid","media_online"];' +
 'keys.forEach(function(k){var el=document.getElementById(k);if(el)el.value="読み込み中...";});' +
 'google.script.run' +
 '.withSuccessHandler(function(data){' +
@@ -1486,7 +1493,7 @@ function getDashboardHtml() {
 '}' +
 
 'function saveAllTerms(){' +
-'var keys=["tos_register","tos_offline","tos_online","media_offline","media_online"];' +
+'var keys=["tos_register","tos_offline","tos_online","media_offline_free","media_offline_paid","media_online"];' +
 'var payload={};' +
 'keys.forEach(function(k){var el=document.getElementById(k);if(el)payload[k]=el.value;});' +
 'var res=document.getElementById("termsResult");' +
