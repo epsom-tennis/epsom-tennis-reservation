@@ -268,6 +268,63 @@ function migratePhoneLeadingZero() {
   ui.alert(`修正完了：合計${total}件の電話番号の頭の「0」を復元しました。\n（11桁の携帯番号で頭の0以外の桁も欠落しているケースは復元できません。該当者には再入力を依頼してください。）`);
 }
 
+// 【一度だけ実行】全データをリセットする。イベントシート・会員マスタ・アクション履歴をすべて削除・クリアする。
+// 本番運用開始前のテストデータ一掃用。実行後は元に戻せないため、確認ダイアログを2段階で表示する。
+function resetAllData() {
+  const ui = SpreadsheetApp.getUi();
+  const res1 = ui.alert(
+    '⚠️ 全データリセット',
+    'テストデータをすべて削除します。\n\n' +
+    '・設定シートのイベント行をすべて削除\n' +
+    '・_応募・_当落・テスト_当落シートをすべて削除\n' +
+    '・会員マスタのデータ行をすべて削除\n' +
+    '・アクション履歴のデータ行をすべて削除\n\n' +
+    '元に戻せません。本当に実行しますか？',
+    ui.ButtonSet.YES_NO
+  );
+  if (res1 !== ui.Button.YES) { ui.alert('キャンセルしました。'); return; }
+
+  const res2 = ui.alert(
+    '最終確認',
+    '本当にすべてのデータを削除しますか？\nこの操作は取り消せません。',
+    ui.ButtonSet.YES_NO
+  );
+  if (res2 !== ui.Button.YES) { ui.alert('キャンセルしました。'); return; }
+
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  let deletedSheets = 0;
+
+  // _応募・_当落・テスト_当落シートを削除
+  const allSheets = ss.getSheets();
+  for (const sheet of allSheets) {
+    const name = sheet.getName();
+    if (name.endsWith('_応募') || name.endsWith('_当落') || name === 'テスト_当落') {
+      ss.deleteSheet(sheet);
+      deletedSheets++;
+    }
+  }
+
+  // 設定シートのデータ行をすべて削除（ヘッダー行は残す）
+  const configSheet = ss.getSheetByName(SHEET.CONFIG);
+  if (configSheet && configSheet.getLastRow() > 1) {
+    configSheet.deleteRows(2, configSheet.getLastRow() - 1);
+  }
+
+  // 会員マスタのデータ行をすべて削除（ヘッダー行は残す）
+  const membersSheet = ss.getSheetByName(SHEET.MEMBERS);
+  if (membersSheet && membersSheet.getLastRow() > 1) {
+    membersSheet.deleteRows(2, membersSheet.getLastRow() - 1);
+  }
+
+  // アクション履歴のデータ行をすべて削除（ヘッダー行は残す）
+  const logSheet = ss.getSheetByName(SHEET.ACTION_LOG);
+  if (logSheet && logSheet.getLastRow() > 1) {
+    logSheet.deleteRows(2, logSheet.getLastRow() - 1);
+  }
+
+  ui.alert(`リセット完了！\nシート削除: ${deletedSheets}件\n会員マスタ・設定シート・アクション履歴のデータをすべてクリアしました。\n\n本番運用を開始できます。`);
+}
+
 // ダッシュボードから既存イベントの詳細情報を編集する（google.script.runから呼び出す）
 // appSheetNameをキーに対象行を特定し、A〜D列（イベント名・日付・シート名）以外の詳細項目を上書きする
 function updateEventDetails(data) {

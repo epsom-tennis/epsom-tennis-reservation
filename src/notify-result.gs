@@ -22,7 +22,9 @@ function sendResults() {
     return;
   }
 
-  const eventName = sheetName.replace('_当落', '');
+  // シート名は内部識別子（イベント名+日付サフィックス）のため、設定シートに登録された本来のイベント名を使う
+  const ev = getAllEvents().find(e => e.resultSheetName === sheetName);
+  const eventName = ev ? ev.name : sheetName.replace('_当落', '');
   notifyStaff(`📨 当落通知 送信完了\n${eventName}\n当選: ${winCount}名 / 落選: ${loseCount}名`);
   SpreadsheetApp.getUi().alert(`送信完了\n当選: ${winCount}名 / 落選: ${loseCount}名`);
 }
@@ -131,6 +133,41 @@ function defaultLoseMessage() {
   );
 }
 
+// 「参加します／キャンセルします」ボタン付きの当落通知を、STAFF_USER_ID宛に実際に送って動作確認するためのテスト機能。
+// 専用の「テスト_当落」シートに自分（STAFF_USER_ID）を当選者として1行登録し、本番と同じsendResultsCoreで送信する。
+// ボタンを押すとこのテスト行が本当に更新されるので、参加確定・期限切れ・キャンセルの返信文まで実際の挙動として確認できる。
+// 何度実行してもテスト行は1行だけになるよう、既存のテスト行は送信前にリセットする。
+function testSendParticipationFlow() {
+  const ui = SpreadsheetApp.getUi();
+  const staffUserId = getProp('STAFF_USER_ID');
+  if (!staffUserId) { ui.alert('STAFF_USER_IDが未設定です。スクリプトプロパティを確認してください。'); return; }
+
+  const sheetName = 'テスト_当落';
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認']);
+    sheet.setFrozenRows(1);
+  } else {
+    // 既存のテスト行をクリアして1行だけに保つ（ヘッダー行は残す）
+    if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  }
+  sheet.appendRow(['テスト太郎', staffUserId, '当選', '', '', '', '', '', new Date(), '']);
+
+  const { winCount } = sendResultsCore(sheet);
+  if (winCount > 0) {
+    ui.alert(
+      'テスト送信完了\n\n' +
+      'STAFF_USER_IDのLINEに「参加します／キャンセルします」ボタン付きの当落通知を送りました。\n' +
+      '実際にボタンを押すと「テスト_当落」シートのJ・C列が本当に更新され、参加確定・期限切れ・キャンセルの返信文も確認できます。\n\n' +
+      '確認が終わったら「テスト_当落」シートは削除して問題ありません（次回また自動作成されます）。'
+    );
+  } else {
+    ui.alert('送信に失敗しました。実行ログを確認してください。');
+  }
+}
+
 // スプレッドシートを開いたときにメニューを追加
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -138,6 +175,11 @@ function onOpen() {
     .addItem('当落通知を送信', 'sendResults')
     .addItem('新しいイベントをセットアップ', 'setupNewEvent')
     .addSeparator()
+    .addItem('🧪 参加確認フローを自分でテスト送信', 'testSendParticipationFlow')
+    .addSeparator()
     .addItem('［一度だけ実行］オンライン列ズレを修正', 'migrateOnlineColumnShift')
+    .addItem('［一度だけ実行］電話番号の頭の0を復元', 'migratePhoneLeadingZero')
+    .addSeparator()
+    .addItem('🗑️ 全データをリセット（本番開始前専用）', 'resetAllData')
     .addToUi();
 }
