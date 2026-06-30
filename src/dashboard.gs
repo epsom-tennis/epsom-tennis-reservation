@@ -14,6 +14,9 @@ function doGet(e) {
     const userId = e && e.parameter && e.parameter.userId;
     return liffApiResponse(getMemberData(userId));
   }
+  if (action === 'getTerms') {
+    return liffApiResponse(getTermsContent());
+  }
   // 診断エンドポイント（テスト用）
   if (action === 'diagnose' && token === getProp('DASHBOARD_TOKEN')) {
     return liffApiResponse(runDiagnose());
@@ -517,6 +520,46 @@ function getDashboardConfig() {
   return { liffId: getProp('LIFF_ID') || '' };
 }
 
+// 規約テキストを規約管理シートから読み込む。シートがない場合は空オブジェクトを返す（LIFFはデフォルト文を使用）
+function getTermsContent() {
+  try {
+    const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+    let sheet = ss.getSheetByName(SHEET.TERMS);
+    if (!sheet) return {};
+    const data = sheet.getDataRange().getValues();
+    const result = {};
+    for (let i = 0; i < data.length; i++) {
+      const key = String(data[i][0] || '').trim();
+      const val = String(data[i][1] || '').trim();
+      if (key) result[key] = val;
+    }
+    return result;
+  } catch (e) {
+    Logger.log('getTermsContent error: ' + e);
+    return {};
+  }
+}
+
+// 規約テキストを規約管理シートに保存する
+function saveTermsContent(data) {
+  try {
+    const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+    let sheet = ss.getSheetByName(SHEET.TERMS);
+    if (!sheet) {
+      sheet = ss.insertSheet(SHEET.TERMS);
+    }
+    sheet.clearContents();
+    const keys = ['tos_register', 'tos_offline', 'tos_online', 'media_offline', 'media_online'];
+    for (const key of keys) {
+      if (data[key] !== undefined) sheet.appendRow([key, data[key]]);
+    }
+    return { success: true };
+  } catch (e) {
+    Logger.log('saveTermsContent error: ' + e);
+    return { success: false, error: e.toString() };
+  }
+}
+
 // ファネル集計：アクション履歴からステージ別のユニーク人数を返す
 function getFunnelStats(days) {
   try {
@@ -732,6 +775,7 @@ function getDashboardHtml() {
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-members" onclick="showTab(\'members\');return false">会員一覧</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-funnel" onclick="showTab(\'funnel\');return false">📊 ファネル分析</a></li>' +
 '<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-messages" onclick="showTab(\'messages\');return false">📝 文章管理</a></li>' +
+'<li class="nav-item"><a class="nav-link" href="#" id="tab-btn-terms" onclick="showTab(\'terms\');return false">📋 規約管理</a></li>' +
 '</ul>' +
 
 '<!-- イベント一覧タブ -->' +
@@ -978,6 +1022,18 @@ function getDashboardHtml() {
 '<div id="msgTemplatesList"><p class="text-muted text-center mt-4">読み込み中...</p></div>' +
 '</div>' +
 
+'<!-- 規約管理タブ -->' +
+'<div id="tab-terms" style="display:none">' +
+'<div class="alert alert-light border small mb-3">LIFFフォームに表示される利用規約・プライバシーポリシー・撮影同意文を編集できます。HTMLタグ（&lt;br&gt;&lt;strong&gt;など）はそのまま使用できます。「💾 保存」を押すと即座に反映されます。</div>' +
+'<div class="d-flex justify-content-end mb-2"><button class="btn btn-primary" onclick="saveAllTerms()">💾 すべて保存</button><span id="termsResult" class="text-muted small ms-3 align-self-center"></span></div>' +
+'<div class="row g-3">' +
+'<div class="col-12"><label class="form-label fw-bold">会員登録 利用規約・プライバシーポリシー</label><textarea class="form-control font-monospace" id="tos_register" rows="10"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">オフラインイベント応募 利用規約</label><textarea class="form-control font-monospace" id="tos_offline" rows="10"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">オンライン（ビデオ相談）応募規約</label><textarea class="form-control font-monospace" id="tos_online" rows="10"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オフライン）</label><textarea class="form-control font-monospace" id="media_offline" rows="6"></textarea></div>' +
+'<div class="col-12"><label class="form-label fw-bold">撮影・広報利用同意（オンライン）</label><textarea class="form-control font-monospace" id="media_online" rows="6"></textarea></div>' +
+'</div></div>' +
+
 '<!-- 会員一覧タブ -->' +
 '<div id="tab-members" style="display:none">' +
 '<div class="row g-3">' +
@@ -1030,6 +1086,7 @@ function getDashboardHtml() {
 'var mTargetIds=[];' +
 'var membersLoaded=false;' +
 'var messagesLoaded=false;' +
+'var termsLoaded=false;' +
 'var msgTemplatesData={};' +
 'var allApplicantsData=[];' +
 'var dashConfig={};' +
@@ -1176,12 +1233,13 @@ function getDashboardHtml() {
 '}' +
 
 'function showTab(t){' +
-'["events","broadcast","members","funnel","messages"].forEach(function(n){' +
+'["events","broadcast","members","funnel","messages","terms"].forEach(function(n){' +
 'document.getElementById("tab-"+n).style.display=t===n?"":"none";' +
 'document.getElementById("tab-btn-"+n).classList.toggle("active",t===n);' +
 '});' +
 'if(t==="members"&&!membersLoaded){membersLoaded=true;loadMembers();}' +
 'if(t==="messages"&&!messagesLoaded){messagesLoaded=true;loadMessageTemplates();}' +
+'if(t==="terms"&&!termsLoaded){termsLoaded=true;loadTerms();}' +
 '}' +
 
 'function spin(on){document.getElementById("spinner").style.display=on?"":"none";}' +
@@ -1414,6 +1472,29 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
 '.saveMessageTemplates(payload);' +
+'}' +
+
+'function loadTerms(){' +
+'var keys=["tos_register","tos_offline","tos_online","media_offline","media_online"];' +
+'keys.forEach(function(k){var el=document.getElementById(k);if(el)el.value="読み込み中...";});' +
+'google.script.run' +
+'.withSuccessHandler(function(data){' +
+'keys.forEach(function(k){var el=document.getElementById(k);if(el)el.value=data[k]||"";});' +
+'})' +
+'.withFailureHandler(function(e){console.error("loadTerms error",e);})' +
+'.getTermsContent();' +
+'}' +
+
+'function saveAllTerms(){' +
+'var keys=["tos_register","tos_offline","tos_online","media_offline","media_online"];' +
+'var payload={};' +
+'keys.forEach(function(k){var el=document.getElementById(k);if(el)payload[k]=el.value;});' +
+'var res=document.getElementById("termsResult");' +
+'res.textContent="保存中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r){res.textContent=r.success?"✅ 保存しました":"❌ "+r.error;})' +
+'.withFailureHandler(function(e){res.textContent="❌ "+(e&&e.message?e.message:String(e));})' +
+'.saveTermsContent(payload);' +
 '}' +
 
 'function saveAllTemplates(){' +

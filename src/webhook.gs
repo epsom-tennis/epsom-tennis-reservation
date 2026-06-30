@@ -109,8 +109,9 @@ function handleOuboStatus(event) {
   const onlineLines = [];
 
   for (const ev of allEvents) {
-    // 停止中・開催日が過去のイベントは表示しない
+    // 停止中・応募開始前・開催日が過去のイベントは表示しない
     if (ev.status === '停止') continue;
+    if (ev.openingDate && ev.openingDate > today) continue;
     if (ev.eventDate) {
       const d = new Date(ev.eventDate);
       d.setHours(0, 0, 0, 0);

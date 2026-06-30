@@ -228,7 +228,8 @@ window.addEventListener('load', function() {
       return Promise.race([
         Promise.all([
           fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }),
-          fetch(GAS_URL + '?action=getMember&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); })
+          fetch(GAS_URL + '?action=getMember&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }),
+          fetch(GAS_URL + '?action=getTerms').then(function(r){ return r.json(); }).catch(function(){ return {}; })
         ]),
         fetchTimeout
       ]);
@@ -238,6 +239,13 @@ window.addEventListener('load', function() {
       if (!results) return;
       eventsData = results[0] || [];
       memberData = results[1] || null;
+      // 規約テキストをGASから取得した内容で上書き（未設定の場合はデフォルトをそのまま使用）
+      var terms = results[2] || {};
+      if (terms.tos_register)  TOS_REGISTER_HTML  = terms.tos_register;
+      if (terms.tos_offline)   TOS_OFFLINE_HTML   = terms.tos_offline;
+      if (terms.tos_online)    TOS_ONLINE_HTML    = terms.tos_online;
+      if (terms.media_offline) MEDIA_HTML         = terms.media_offline;
+      if (terms.media_online)  MEDIA_ONLINE_HTML  = terms.media_online;
       if (new URLSearchParams(window.location.search).get('test') === 'first') memberData = null;
       renderForm();
     })
