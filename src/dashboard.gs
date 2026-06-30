@@ -185,6 +185,8 @@ function getEventsData() {
       facilityUrl:     ev.facilityUrl     || '',
       confirmDeadline: ev.confirmDeadline || '',
       confirmDeadlineAtISO: ev.confirmDeadlineAt ? Utilities.formatDate(ev.confirmDeadlineAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
+      closingDateTimeAtISO: ev.closingDateTimeAt ? Utilities.formatDate(ev.closingDateTimeAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
+      resultAnnouncementDateISO: ev.resultAnnouncementDate ? Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'yyyy-MM-dd') : '',
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -208,8 +210,12 @@ function getApplicants(appSheetName, resultSheetName) {
           age:           String(mData[i][6]  || ''),
           gender:        String(mData[i][7]  || ''),
           tennisLevel:   String(mData[i][8]  || ''),
+          email:         String(mData[i][9]  || ''),
+          phone:         String(mData[i][10] || '').replace(/^(\d{9,10})$/, '0$1'),
+          furigana:      String(mData[i][11] || ''),
           tennisFreq:    String(mData[i][13] || ''),
           tennisHistory: String(mData[i][14] || ''),
+          tennisArea:    String(mData[i][15] || ''),
         };
       }
     }
@@ -256,8 +262,12 @@ function getApplicants(appSheetName, resultSheetName) {
       age:            mInfo.age           || '',
       gender:         mInfo.gender        || '',
       tennisLevel:    mInfo.tennisLevel   || '',
+      email:          mInfo.email         || '',
+      phone:          mInfo.phone         || '',
+      furigana:       mInfo.furigana      || '',
       tennisFreq:     mInfo.tennisFreq    || '',
       tennisHistory:  mInfo.tennisHistory || '',
+      tennisArea:     mInfo.tennisArea    || '',
     });
   }
   return applicants;
@@ -324,7 +334,9 @@ function sendResultsFromDashboard(resultSheetName) {
   const { winCount, loseCount } = sendResultsCore(sheet);
 
   if (winCount + loseCount > 0) {
-    const eventName = resultSheetName.replace('_当落', '');
+    // シート名は内部識別子（イベント名+日付サフィックス）のため、設定シートに登録された本来のイベント名を使う
+    const ev = getAllEvents().find(e => e.resultSheetName === resultSheetName);
+    const eventName = ev ? ev.name : resultSheetName.replace('_当落', '');
     notifyStaff(`📨 当落通知 送信完了\n${eventName}\n当選: ${winCount}名 / 落選: ${loseCount}名`);
   }
 
@@ -763,6 +775,10 @@ function getDashboardHtml() {
 '<textarea class="form-control" id="ne_items" rows="2" placeholder="・ラケット\n・テニスウェア\n・テニスシューズ"></textarea></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加費</label>' +
 '<input type="text" class="form-control" id="ne_fee" placeholder="EPSOM&CO.様のサポートにより、無料でご参加いただけます！"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">募集締め切り日時<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="datetime-local" class="form-control" id="ne_closing_at"><div class="form-text">設定すると「応募状況」に「〇月〇日 〇:〇〇まで受付中」と表示されます</div></div>' +
+'<div class="col-6"><label class="form-label fw-bold">当落通知予定日<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="date" class="form-control" id="ne_result_announcement"><div class="form-text">設定すると「応募状況」に「当落は〇月〇日頃にお知らせします」と表示されます</div></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限</label>' +
 '<input type="text" class="form-control" id="ne_deadline" placeholder="5月27日（水）12:00"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限（自動キャンセル日時）<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
@@ -809,6 +825,8 @@ function getDashboardHtml() {
 '<div class="col-6"><label class="form-label fw-bold">コートについて</label><input type="text" class="form-control" id="ee_court"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加費</label><input type="text" class="form-control" id="ee_fee"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">持ち物</label><textarea class="form-control" id="ee_items" rows="2"></textarea></div>' +
+'<div class="col-6"><label class="form-label fw-bold">募集締め切り日時<span class="text-muted small fw-normal ms-1">（任意）</span></label><input type="datetime-local" class="form-control" id="ee_closing_at"></div>' +
+'<div class="col-6"><label class="form-label fw-bold">当落通知予定日<span class="text-muted small fw-normal ms-1">（任意）</span></label><input type="date" class="form-control" id="ee_result_announcement"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限</label><input type="text" class="form-control" id="ee_deadline"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限（自動キャンセル日時）</label><input type="datetime-local" class="form-control" id="ee_deadline_at"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">更衣室について</label><textarea class="form-control" id="ee_locker" rows="2"></textarea></div>' +
@@ -833,6 +851,7 @@ function getDashboardHtml() {
 '<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">' +
 '<h6 class="mb-0" id="applicantTitle"></h6>' +
 '<button class="btn btn-success btn-sm ms-auto" onclick="sendNotifications()">📨 当落通知を送信</button>' +
+'<button class="btn btn-outline-primary btn-sm" onclick="openPrintModal()">📄 表を作成</button>' +
 '<button class="btn btn-outline-secondary btn-sm" onclick="closeApplicants()">✕ 閉じる</button>' +
 '</div>' +
 '<div class="d-flex gap-2 flex-wrap mb-2 p-2 bg-light rounded">' +
@@ -863,6 +882,19 @@ function getDashboardHtml() {
 '</table>' +
 '</div>' +
 '</div>' +
+
+'<div id="printModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;overflow-y:auto">' +
+'<div style="background:#fff;margin:40px auto;padding:24px;max-width:500px;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.2)">' +
+'<h6 class="mb-1">📄 表を作成</h6>' +
+'<p class="text-muted small mb-3">チェックした人の表が別タブで開きます。ブラウザの印刷機能でPDFに保存できます。</p>' +
+'<div id="printColChecks" class="mb-3" style="columns:2;gap:12px"></div>' +
+'<div class="d-flex gap-2 flex-wrap">' +
+'<button class="btn btn-primary" onclick="buildPrintTable()">表を作成 →</button>' +
+'<button class="btn btn-outline-secondary" onclick="document.getElementById(\'printModal\').style.display=\'none\'">キャンセル</button>' +
+'</div>' +
+'</div>' +
+'</div>' +
+
 '</div>' +
 
 '<!-- 絞り込み送信タブ -->' +
@@ -1053,6 +1085,8 @@ function getDashboardHtml() {
 'fee=document.getElementById("ne_fee").value.trim();' +
 'deadline=document.getElementById("ne_deadline").value.trim();' +
 'deadlineAt=document.getElementById("ne_deadline_at").value;' +
+'closingAt=document.getElementById("ne_closing_at").value;' +
+'resultAnnouncement=document.getElementById("ne_result_announcement").value;' +
 'locker=document.getElementById("ne_locker").value.trim();' +
 'facilityUrl=document.getElementById("ne_facility_url").value.trim();' +
 '}' +
@@ -1066,7 +1100,7 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
 '.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType,' +
-'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,lockerInfo:locker,facilityUrl:facilityUrl});' +
+'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,closingDateTimeAt:closingAt,resultAnnouncementDate:resultAnnouncement,lockerInfo:locker,facilityUrl:facilityUrl});' +
 '}' +
 
 'function openEditEventModal(idx,e){' +
@@ -1086,6 +1120,8 @@ function getDashboardHtml() {
 'document.getElementById("ee_court").value=ev.courtType||"";' +
 'document.getElementById("ee_fee").value=ev.fee||"";' +
 'document.getElementById("ee_items").value=ev.items||"";' +
+'document.getElementById("ee_closing_at").value=ev.closingDateTimeAtISO||"";' +
+'document.getElementById("ee_result_announcement").value=ev.resultAnnouncementDateISO||"";' +
 'document.getElementById("ee_deadline").value=ev.confirmDeadline||"";' +
 'document.getElementById("ee_deadline_at").value=ev.confirmDeadlineAtISO||"";' +
 'document.getElementById("ee_locker").value=ev.lockerInfo||"";' +
@@ -1121,6 +1157,8 @@ function getDashboardHtml() {
 'payload.courtType=document.getElementById("ee_court").value.trim();' +
 'payload.fee=document.getElementById("ee_fee").value.trim();' +
 'payload.items=document.getElementById("ee_items").value.trim();' +
+'payload.closingDateTimeAt=document.getElementById("ee_closing_at").value;' +
+'payload.resultAnnouncementDate=document.getElementById("ee_result_announcement").value;' +
 'payload.confirmDeadline=document.getElementById("ee_deadline").value.trim();' +
 'payload.confirmDeadlineAt=document.getElementById("ee_deadline_at").value;' +
 'payload.lockerInfo=document.getElementById("ee_locker").value.trim();' +
@@ -1339,7 +1377,7 @@ function getDashboardHtml() {
 'function escHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}' +
 
 'function renderMessageTemplates(data){' +
-'var html="";' +
+'var html="<div class=\'d-flex justify-content-end mb-3\'><button class=\'btn btn-success\' onclick=\'saveAllTemplates()\'>💾 すべて保存</button> <span class=\'small text-muted align-self-center ms-2\' id=\'tmplAllResult\'></span></div>";' +
 '(data.templates||[]).forEach(function(t,i){' +
 'html+="<div class=\'card p-3 mb-3\'>";' +
 'html+="<div class=\'d-flex justify-content-between align-items-start mb-2 flex-wrap gap-1\'>";' +
@@ -1372,6 +1410,29 @@ function getDashboardHtml() {
 '.withSuccessHandler(function(r){' +
 'if(r.success){btn.className="btn btn-sm btn-success";btn.textContent="✅ 保存済み";resEl.textContent="";}' +
 'else{resEl.textContent="エラー: "+r.error;}' +
+'})' +
+'.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
+'.saveMessageTemplates(payload);' +
+'}' +
+
+'function saveAllTemplates(){' +
+'var payload={};' +
+'(msgTemplatesData.templates||[]).forEach(function(t,i){' +
+'var el=document.getElementById("tmpl_"+i);' +
+'if(el)payload[t.key]=el.value;' +
+'});' +
+'var resEl=document.getElementById("tmplAllResult");' +
+'resEl.textContent="保存中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(r){' +
+'if(r.success){' +
+'resEl.textContent="✅ すべて保存しました";' +
+'(msgTemplatesData.templates||[]).forEach(function(t,i){' +
+'var btn=document.getElementById("tmplBtn_"+i);' +
+'if(btn){btn.className="btn btn-sm btn-success";btn.textContent="✅ 保存済み";}' +
+'var r2=document.getElementById("tmplResult_"+i);if(r2)r2.textContent="";' +
+'});' +
+'}else{resEl.textContent="エラー: "+r.error;}' +
 '})' +
 '.withFailureHandler(function(e){resEl.textContent="エラー: "+(e&&e.message?e.message:String(e));})' +
 '.saveMessageTemplates(payload);' +
@@ -1535,6 +1596,62 @@ function getDashboardHtml() {
 'function toggleAllChecks(on){' +
 'document.querySelectorAll("#applicantBody .row-check").forEach(function(cb){cb.checked=on;});' +
 'var hdr=document.getElementById("chkAll");if(hdr)hdr.checked=on;' +
+'}' +
+
+'var PRINT_COLS=[' +
+'{key:"name",label:"名前",def:true},' +
+'{key:"furigana",label:"フリガナ",def:true},' +
+'{key:"age",label:"年齢",def:true},' +
+'{key:"gender",label:"性別",def:true},' +
+'{key:"tennisLevel",label:"テニスレベル",def:true},' +
+'{key:"tennisHistory",label:"テニス歴",def:false},' +
+'{key:"tennisFreq",label:"プレー頻度",def:false},' +
+'{key:"tennisArea",label:"テニスエリア",def:false},' +
+'{key:"coachKnowledge",label:"コーチ認知",def:false},' +
+'{key:"result",label:"当落結果",def:false},' +
+'{key:"confirmation",label:"参加確認",def:false},' +
+'{key:"appliedAt",label:"応募日時",def:false},' +
+'{key:"email",label:"メールアドレス",def:false},' +
+'{key:"phone",label:"電話番号",def:false},' +
+'];' +
+
+'function openPrintModal(){' +
+'var checked=Array.from(document.querySelectorAll("#applicantBody .row-check:checked"));' +
+'if(checked.length===0){alert("表に含める人をチェックしてください。");return;}' +
+'var html="";' +
+'PRINT_COLS.forEach(function(c,i){' +
+'html+="<label style=\'display:block;margin-bottom:6px\'><input type=\'checkbox\' id=\'pc_"+i+"\' "+(c.def?"checked":"")+"> "+c.label+"</label>";' +
+'});' +
+'document.getElementById("printColChecks").innerHTML=html;' +
+'document.getElementById("printModal").style.display="block";' +
+'}' +
+
+'function buildPrintTable(){' +
+'var checkedIds=Array.from(document.querySelectorAll("#applicantBody .row-check:checked")).map(function(cb){return cb.dataset.userid;});' +
+'var cols=PRINT_COLS.filter(function(c,i){return document.getElementById("pc_"+i)&&document.getElementById("pc_"+i).checked;});' +
+'if(cols.length===0){alert("表示する列を1つ以上選んでください。");return;}' +
+'var rows=allApplicantsData.filter(function(a){return checkedIds.indexOf(a.userId)!==-1;});' +
+'var eventName=currentEvent?currentEvent.name:"応募者";' +
+'var thead="<tr>"+cols.map(function(c){return"<th>"+c.label+"</th>";}).join("")+"</tr>";' +
+'var tbody=rows.map(function(a,i){' +
+'return"<tr>"' +
+'+cols.map(function(c){return"<td>"+(a[c.key]||"")+"</td>";}).join("")' +
+'+"</tr>";' +
+'}).join("");' +
+'var html="<!DOCTYPE html><html lang=\'ja\'><head><meta charset=\'utf-8\'><title>"+eventName+" 応募者一覧</title>"' +
+'+"<style>body{font-family:sans-serif;font-size:13px;padding:20px}h2{font-size:16px;margin-bottom:12px}"' +
+'+"table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}"' +
+'+"th{background:#f0f0f0;font-weight:bold}tr:nth-child(even){background:#f9f9f9}"' +
+'+"#printBtn{margin-bottom:16px;padding:8px 20px;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px}"' +
+'+"@media print{#printBtn{display:none}}"' +
+'+"</style></head><body>"' +
+'+"<button id=\'printBtn\' onclick=\'window.print()\'>🖨 印刷 / PDFで保存</button>"' +
+'+"<h2>"+eventName+" — 応募者一覧（"+rows.length+"名）</h2>"' +
+'+"<table><thead>"+thead+"</thead><tbody>"+tbody+"</tbody></table>"' +
+'+"</body></html>";' +
+'var w=window.open("","_blank");' +
+'if(w){w.document.write(html);w.document.close();}else{alert("ポップアップがブロックされています。ブラウザの設定でこのサイトのポップアップを許可してください。");}' +
+'document.getElementById("printModal").style.display="none";' +
 '}' +
 
 'function batchWinLose(){' +

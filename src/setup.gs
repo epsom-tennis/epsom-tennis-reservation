@@ -94,6 +94,7 @@ function createNewEvent(data) {
     const {
       name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
+      closingDateTimeAt, resultAnnouncementDate,
     } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
     if (!name) return { success: false, error: 'イベント名は必須です。' };
@@ -123,6 +124,16 @@ function createNewEvent(data) {
     if (confirmDeadlineAt) {
       confirmDeadlineAtObj = new Date(confirmDeadlineAt);
       if (isNaN(confirmDeadlineAtObj.getTime())) return { success: false, error: '参加確認期限（日時）の形式が正しくありません。' };
+    }
+    let closingDateTimeAtObj = null;
+    if (closingDateTimeAt) {
+      closingDateTimeAtObj = new Date(closingDateTimeAt);
+      if (isNaN(closingDateTimeAtObj.getTime())) return { success: false, error: '募集締め切り日時の形式が正しくありません。' };
+    }
+    let resultAnnouncementDateObj = null;
+    if (resultAnnouncementDate) {
+      resultAnnouncementDateObj = new Date(resultAnnouncementDate);
+      if (isNaN(resultAnnouncementDateObj.getTime())) return { success: false, error: '当落通知予定日の形式が正しくありません。' };
     }
 
     // 同名イベントの重複チェック
@@ -159,6 +170,7 @@ function createNewEvent(data) {
       name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
       eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '', '',
       meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '', confirmDeadlineAtObj || '',
+      closingDateTimeAtObj || '', resultAnnouncementDateObj || '',
     ]);
 
     return {
@@ -212,12 +224,52 @@ function migrateOnlineColumnShift() {
   ui.alert(`修正完了：${migratedCount}件のシートのデータを修正しました。`);
 }
 
+// 【一度だけ実行】既存バグの修正：電話番号がセルに数値として書き込まれ、頭の「0」が消えてしまっていたものを復元する。
+// 会員マスタのK列（電話番号）・M列（緊急連絡先）、各オンラインイベント当落シートのO列（電話相談の電話番号）が対象。
+// 日本の電話番号は10桁（固定）または11桁（携帯）のため、9桁・10桁になっている数字だけを「頭に0が消えた」とみなして復元する。
+function migratePhoneLeadingZero() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+
+  function fixColumn(sheet, col, label) {
+    const numRows = sheet.getLastRow() - 1;
+    if (numRows <= 0) return 0;
+    const range = sheet.getRange(2, col, numRows, 1);
+    const values = range.getValues();
+    let fixed = 0;
+    const newValues = values.map(([v]) => {
+      const s = String(v || '').trim();
+      if (/^\d{9,10}$/.test(s)) { fixed++; return ['0' + s]; }
+      return [s];
+    });
+    if (fixed > 0) {
+      range.setNumberFormat('@').setValues(newValues);
+      Logger.log(`${sheet.getName()} ${label}: ${fixed}件復元`);
+    }
+    return fixed;
+  }
+
+  const membersSheet = getSheet(SHEET.MEMBERS);
+  let total = 0;
+  total += fixColumn(membersSheet, 11, '電話番号');
+  total += fixColumn(membersSheet, 13, '緊急連絡先');
+
+  const onlineEvents = getAllEvents().filter(ev => ev.eventType === 'オンライン');
+  for (const ev of onlineEvents) {
+    const sheet = ss.getSheetByName(ev.resultSheetName);
+    if (sheet && sheet.getLastRow() > 1) total += fixColumn(sheet, 15, '電話相談の電話番号');
+  }
+
+  ui.alert(`修正完了：合計${total}件の電話番号の頭の「0」を復元しました。\n（11桁の携帯番号で頭の0以外の桁も欠落しているケースは復元できません。該当者には再入力を依頼してください。）`);
+}
+
 // ダッシュボードから既存イベントの詳細情報を編集する（google.script.runから呼び出す）
 // appSheetNameをキーに対象行を特定し、A〜D列（イベント名・日付・シート名）以外の詳細項目を上書きする
 function updateEventDetails(data) {
   try {
     const { appSheetName, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
-      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt } = data;
+      meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
+      closingDateTimeAt, resultAnnouncementDate } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -253,6 +305,8 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 20).setValue(facilityUrl || '');
     configSheet.getRange(rowIdx, 21).setValue(confirmDeadline || '');
     configSheet.getRange(rowIdx, 22).setValue(toDateOrBlank(confirmDeadlineAt));
+    configSheet.getRange(rowIdx, 23).setValue(toDateOrBlank(closingDateTimeAt));
+    configSheet.getRange(rowIdx, 24).setValue(toDateOrBlank(resultAnnouncementDate));
 
     return { success: true };
   } catch (err) {

@@ -52,6 +52,14 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 22).getValue()) {
     sheet.getRange(1, 22).setValue('参加確認期限（日時・自動キャンセル用）');
   }
+  // W列：募集締め切り日時（応募状況返信での締め切り時刻表示用）。日付のみのC列とは別管理
+  if (!sheet.getRange(1, 23).getValue()) {
+    sheet.getRange(1, 23).setValue('募集締め切り日時');
+  }
+  // X列：当落通知予定日（応募状況返信で「〇月〇日頃に当落をお知らせします」と表示する用）
+  if (!sheet.getRange(1, 24).getValue()) {
+    sheet.getRange(1, 24).setValue('当落通知予定日');
+  }
 }
 
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
@@ -86,7 +94,9 @@ function getAllEvents() {
     const lockerInfo       = String(data[i][18] || '').trim(); // S列：更衣室について
     const facilityUrl      = String(data[i][19] || '').trim(); // T列：施設URL
     const confirmDeadline  = String(data[i][20] || '').trim(); // U列：参加確認期限（表示用テキスト）
-    const confirmDeadlineAt = data[i][21] ? new Date(data[i][21]) : null; // V列：参加確認期限の実日時（期限切れ自動キャンセル判定用）
+    const confirmDeadlineAt   = data[i][21] ? new Date(data[i][21]) : null; // V列：参加確認期限の実日時（期限切れ自動キャンセル判定用）
+    const closingDateTimeAt   = data[i][22] ? new Date(data[i][22]) : null; // W列：募集締め切り日時（時刻込み）
+    const resultAnnouncementDate = data[i][23] ? new Date(data[i][23]) : null; // X列：当落通知予定日
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
@@ -94,6 +104,7 @@ function getAllEvents() {
       name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg,
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
+      closingDateTimeAt, resultAnnouncementDate,
     });
   }
   return events;

@@ -105,16 +105,19 @@ function handleOuboStatus(event) {
   today.setHours(0, 0, 0, 0);
 
   const allEvents = getAllEvents();
-  const lines = [];
+  const offlineLines = [];
+  const onlineLines = [];
 
   for (const ev of allEvents) {
-    // 開催日が過去のイベントは表示しない
+    // 停止中・開催日が過去のイベントは表示しない
+    if (ev.status === '停止') continue;
     if (ev.eventDate) {
       const d = new Date(ev.eventDate);
       d.setHours(0, 0, 0, 0);
       if (d < today) continue;
     }
 
+    const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
     let status = '';
 
     // 当落シートB列でUser IDを検索（LIFF応募・Google Form応募の両方が入る）
@@ -155,24 +158,42 @@ function handleOuboStatus(event) {
       }
     }
 
-    // どこにも存在しない場合は募集終了日で期間中か終了かを判定
+    // どこにも存在しない場合は募集終了日時で期間中か終了かを判定
+    // closingDateTimeAt（日時）があればそちらを優先し時刻も表示する
+    // オンラインイベントで締め切りなしの場合は「常時募集中」と表示する
     if (!status) {
-      if (ev.closingDate) {
+      if (ev.closingDateTimeAt) {
+        const isOpen = ev.closingDateTimeAt >= new Date();
+        const fmt = Utilities.formatDate(ev.closingDateTimeAt, 'Asia/Tokyo', 'M月d日 H:mm');
+        status = isOpen ? `未応募（${fmt}まで受付中）` : '未応募（応募期間終了）';
+      } else if (ev.closingDate) {
         const closing = new Date(ev.closingDate);
         closing.setHours(0, 0, 0, 0);
         status = closing >= today ? '未応募（応募期間中）' : '未応募（応募期間終了）';
       } else {
-        status = '未応募';
+        status = isOnline ? '常時募集中' : '未応募';
       }
     }
 
-    lines.push(`【${ev.name}】\n${status}`);
+    // 応募済み（当落発表前）の場合、当落通知予定日があれば追記する
+    if (status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
+      const fmt = Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日');
+      status += `\n（当落は${fmt}頃にお知らせします）`;
+    }
+
+    const line = `【${ev.name}】\n${status}`;
+    if (isOnline) onlineLines.push(line);
+    else offlineLines.push(line);
   }
 
-  if (lines.length === 0) {
+  const sections = [];
+  if (offlineLines.length > 0) sections.push(`『オフラインイベント』\n\n` + offlineLines.join('\n\n'));
+  if (onlineLines.length > 0) sections.push(`『オンラインイベント』\n\n` + onlineLines.join('\n\n'));
+
+  if (sections.length === 0) {
     replyMessage(replyToken, '現在参加受付中のイベントはありません。');
   } else {
-    replyMessage(replyToken, lines.join('\n\n'));
+    replyMessage(replyToken, sections.join('\n\n──────────\n\n'));
   }
 
   logAction(userId, '応募状況照会', '', '');
@@ -276,7 +297,8 @@ function handleParticipationConfirm(replyToken, sheetName, baseUserId) {
     }
   }
 
-  const eventName = sheetName.replace(/_当落$/, '');
+  // シート名は内部識別子（イベント名+日付サフィックス）のため、設定シートに登録された本来のイベント名を使う
+  const eventName = ev ? ev.name : sheetName.replace(/_当落$/, '');
   if (updated > 0) {
     if (isExpired) {
       replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_expired'), { eventName }));
@@ -307,7 +329,9 @@ function handleParticipationCancel(replyToken, sheetName, baseUserId) {
     }
   }
 
-  const eventName = sheetName.replace(/_当落$/, '');
+  // シート名は内部識別子（イベント名+日付サフィックス）のため、設定シートに登録された本来のイベント名を使う
+  const ev = getAllEvents().find(e => e.resultSheetName === sheetName);
+  const eventName = ev ? ev.name : sheetName.replace(/_当落$/, '');
   if (canceledNames.length > 0) {
     replyMessage(replyToken, renderTemplate_(getMsgTemplate_('participation_canceled'), { eventName }));
     notifyStaff(`❌ キャンセル連絡\nイベント: ${eventName}\nお名前: ${canceledNames.join('、')}\n繰り上げ選定をご確認ください。`);
