@@ -747,6 +747,7 @@ function getDashboardHtml() {
 '<select class="form-select" id="ne_type" onchange="onEventTypeChange()">' +
 '<option value="オフライン">📍 オフライン</option>' +
 '<option value="オンライン">💻 オンライン</option>' +
+'<option value="選手交流">🤝 選手交流</option>' +
 '</select></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント名<span class="text-danger">*</span></label>' +
 '<input type="text" class="form-control" id="ne_name" placeholder="コーチAレッスン 7月15日"></div>' +
