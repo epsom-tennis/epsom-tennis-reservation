@@ -542,6 +542,18 @@ function getTermsContent() {
   }
 }
 
+// デフォルト規約文を返す（初回・リセット用）
+function getDefaultTermsContent() {
+  return {
+    tos_register: '<strong>Epsom &amp; Co. TENNIS SUPPORT PROJECT<br>会員登録 利用規約・プライバシーポリシー</strong><br><br>株式会社サウスポー（以下「当社」）が運営する「Epsom &amp; Co. TENNIS SUPPORT PROJECT」の会員サービスにご登録いただくにあたり、以下の規約・プライバシーポリシーを定めます。本サービスにご登録された時点で、本規約に同意いただいたものとみなします。<br><br><strong>第1条（会員登録）</strong><br>本サービスへの会員登録は、所定のフォームへの情報入力をもって成立します。<br><br><strong>第2条（未成年の登録）</strong><br>未成年の方が登録する場合は、保護者の同意を得たうえでご登録ください。<br><br><strong>第3条（禁止事項）</strong><br>虚偽情報による登録・第三者へのアカウント情報の提供等の不適切な行為を禁じます。<br><br><strong>第4条（登録情報の変更・退会）</strong><br>変更が生じた場合はフォームよりご変更ください。退会希望は当社までご連絡ください。<br><br><strong>第5条（規約の変更）</strong><br>当社は必要に応じて本規約を変更することができます。<br><br><strong>プライバシーポリシー</strong><br><br>取得する個人情報：氏名・フリガナ・年齢・性別・メールアドレス・電話番号・テニスレベル等<br>利用目的：会員情報の管理・イベント参加申し込み・当落連絡・運営連絡<br>第三者提供：法令に基づく場合を除き、本人の同意なく第三者へ提供しません。',
+    tos_offline: '<strong>イベント応募 利用規約</strong><br><br>株式会社サウスポーが主催する「Epsom &amp; Co. TENNIS SUPPORT PROJECT」のイベントへの応募および参加条件を定めます。応募された時点で本規約に同意したものとみなします。<br><br><strong>第1条（応募方法）</strong><br>応募は、指定の応募フォームへの入力をもって成立します。応募者多数の場合は抽選を行い、当選・落選の双方にLINEでご連絡します。<br><br><strong>第2条（参加資格）</strong><br>当選連絡を受けた本人のみ参加可能です。当選権利の譲渡・転売はできません。<br><br><strong>第3条（未成年の参加）</strong><br>保護者の同意を得たうえで応募してください。<br><br><strong>第4条（キャンセル）</strong><br>参加できなくなった場合は速やかにご連絡ください。有料イベントのキャンセル料等は各イベントの募集要項に準じます。<br><br><strong>第5条（イベントの変更・中止）</strong><br>やむを得ない事情によりイベント内容を変更・中止する場合があります。<br><br><strong>第6条（禁止事項）</strong><br>他参加者・スタッフへの迷惑行為、虚偽応募、当選権利の譲渡等を禁じます。<br><br><strong>第7条（撮影・広報利用）</strong><br>イベント当日の写真・動画を公式SNS等で使用する場合があります。<br><br><strong>第8条（健康・安全）</strong><br>体調不良や怪我がある場合は参加を控えてください。<br><br><strong>第9条（免責）</strong><br>イベント参加に伴う事故・怪我・盗難等について、主催者は故意または重大な過失がない限り責任を負いません。各自でスポーツ傷害保険等へのご加入をお勧めします。',
+    tos_online: '<strong>ビデオ相談企画 応募規約</strong><br><br>株式会社サウスポーが実施する「ビデオ相談企画」への応募条件を定めます。応募された時点で本規約に同意したものとみなします。<br><br><strong>第1条（応募方法）</strong><br>指定フォームへの入力と動画の提出をもって応募が成立します。<br><br><strong>第2条（動画利用）</strong><br>応募データはYouTube配信・SNS投稿・広報活動等で使用される場合があります。配信後の削除・修正はお受けできません。<br><br><strong>第3条（著作者人格権）</strong><br>応募コンテンツの編集・改変について著作者人格権を行使しないものとします。<br><br><strong>第4条（禁止事項）</strong><br>虚偽応募・第三者の権利を侵害する動画の投稿等を禁じます。<br><br><strong>第5条（免責）</strong><br>主催者の故意または重大な過失がある場合を除き、責任を負いません。',
+    media_offline_free: '株式会社サウスポーでは、イベントの様子（コート全体の風景、練習風景など）を写真・動画で記録しており、公式SNSをはじめとする各種媒体での情報発信や告知等に使用します。<br><br>イベント中の撮影および参加者の皆様へのインタビュー（顔出しあり）へのご協力を前提として運営しております。ご応募の際は、撮影・インタビューへのご協力に同意いただいた上でお申し込みください。',
+    media_offline_paid: '株式会社サウスポーでは、イベントの様子（コート全体の風景、練習風景など）を写真・動画で記録しており、公式SNSをはじめとする各種媒体での情報発信や告知等に使用します。<br><br>イベント風景（遠景等による映り込みを含む）の撮影・公開への同意が必要となります。ただし、個別のお写真撮影やインタビュー（顔出しあり）へのご協力については任意（拒否可能）となります。お断りされる場合は、当日スタッフまでお気軽にお申し出ください。',
+    media_online: 'ご応募いただいた動画およびご相談内容は、YouTube生配信「テニスポットラジオ」、アーカイブ配信、SNS投稿、切り抜き動画、Webサイト等で使用させていただく場合があります。<br><br>また、配信・投稿の際に動画の一部を編集・加工して使用する場合があります。<br><br>応募後および配信後は、原則として動画の削除依頼や公開停止のご要望にはお応えできません。',
+  };
+}
+
 // 規約テキストを規約管理シートに保存する
 function saveTermsContent(data) {
   try {
@@ -1028,7 +1040,7 @@ function getDashboardHtml() {
 '<!-- 規約管理タブ -->' +
 '<div id="tab-terms" style="display:none">' +
 '<div class="alert alert-light border small mb-3">LIFFフォームに表示される利用規約・プライバシーポリシー・撮影同意文を編集できます。HTMLタグ（&lt;br&gt;&lt;strong&gt;など）はそのまま使用できます。「💾 保存」を押すと即座に反映されます。</div>' +
-'<div class="d-flex justify-content-end mb-2"><button class="btn btn-primary" onclick="saveAllTerms()">💾 すべて保存</button><span id="termsResult" class="text-muted small ms-3 align-self-center"></span></div>' +
+'<div class="d-flex justify-content-end mb-2 gap-2"><button class="btn btn-outline-secondary" onclick="initTerms()">🔄 デフォルト文を読み込む</button><button class="btn btn-primary" onclick="saveAllTerms()">💾 すべて保存</button><span id="termsResult" class="text-muted small ms-3 align-self-center"></span></div>' +
 '<div class="row g-3">' +
 '<div class="col-12"><label class="form-label fw-bold">会員登録 利用規約・プライバシーポリシー</label><textarea class="form-control font-monospace" id="tos_register" rows="10"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">オフラインイベント応募 利用規約</label><textarea class="form-control font-monospace" id="tos_offline" rows="10"></textarea></div>' +
@@ -1490,6 +1502,19 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){console.error("loadTerms error",e);})' +
 '.getTermsContent();' +
+'}' +
+
+'function initTerms(){' +
+'if(!confirm("現在の入力内容をデフォルト文で上書きします。よろしいですか？"))return;' +
+'var keys=["tos_register","tos_offline","tos_online","media_offline_free","media_offline_paid","media_online"];' +
+'keys.forEach(function(k){var el=document.getElementById(k);if(el)el.value="読み込み中...";});' +
+'google.script.run' +
+'.withSuccessHandler(function(data){' +
+'keys.forEach(function(k){var el=document.getElementById(k);if(el)el.value=data[k]||"";});' +
+'document.getElementById("termsResult").textContent="デフォルト文を読み込みました。「💾 すべて保存」で確定してください。";' +
+'})' +
+'.withFailureHandler(function(e){console.error("initTerms error",e);})' +
+'.getDefaultTermsContent();' +
 '}' +
 
 'function saveAllTerms(){' +

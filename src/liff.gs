@@ -229,7 +229,9 @@ function submitLiffApplication(data) {
         }
       }
 
-      pushMessage(data.userId, msgParts.join('\n\n'));
+      const pushMsg = msgParts.join('\n\n');
+      const pushResult = pushMessage(data.userId, pushMsg);
+      Logger.log('PUSH userId=' + data.userId + ' result=' + JSON.stringify(pushResult));
 
       // 動画相談の場合はLINEへの動画送信を依頼
       if ((data.onlineConsultType || '') === 'video') {
@@ -241,12 +243,40 @@ function submitLiffApplication(data) {
       pushMessage(data.userId, getMsgTemplate_(data.isNewRegistration ? 'registration_done' : 'profile_done'));
     }
 
-    return { success: true, appliedEvents: appliedNames };
+    return { success: true, appliedEvents: appliedNames, _debugUserId: data.userId, _debugPush: typeof pushResult !== 'undefined' ? JSON.stringify(pushResult) : 'not_called' };
 
   } catch (err) {
     Logger.log('submitLiffApplication error: ' + err.toString());
     return { success: false, error: err.toString() };
   }
+}
+
+// GASエディタから直接実行してイベント応募完了メッセージをテスト送信する
+// STAFF_USER_IDに送信し、ログでLINE APIの結果を確認できる
+function testEventApplyMessage() {
+  const userId = getProp('STAFF_USER_ID');
+  if (!userId) {
+    Logger.log('ERROR: STAFF_USER_IDが未設定です。スクリプトプロパティを確認してください。');
+    return;
+  }
+  Logger.log('送信先 userId: ' + userId);
+
+  const namesPart = 'テストユーザー 様';
+  const template1 = getMsgTemplate_('header_apply');
+  Logger.log('header_applyテンプレート: ' + template1);
+  const msg1 = renderTemplate_(template1, { names: namesPart });
+  Logger.log('header_apply描画結果: ' + msg1);
+
+  const template2 = getMsgTemplate_('offline_apply');
+  Logger.log('offline_applyテンプレート: ' + template2);
+  const msg2 = renderTemplate_(template2, { events: '・テストイベント' });
+  Logger.log('offline_apply描画結果: ' + msg2);
+
+  const fullMsg = [msg1, msg2].join('\n\n');
+  Logger.log('送信メッセージ全文:\n' + fullMsg);
+
+  const result = pushMessage(userId, fullMsg);
+  Logger.log('LINE API結果: ' + JSON.stringify(result));
 }
 
 function getLiffHtml(liffId, eventsJson) {
