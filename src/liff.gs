@@ -246,7 +246,7 @@ function submitLiffApplication(data) {
       Logger.log('PUSH(profile) userId=' + data.userId + ' result=' + JSON.stringify(_pushResult));
     }
 
-    return { success: true, appliedEvents: appliedNames, _debugUserId: data.userId, _debugPush: JSON.stringify(_pushResult) };
+    return { success: true, appliedEvents: appliedNames };
 
   } catch (err) {
     Logger.log('submitLiffApplication error: ' + err.toString());

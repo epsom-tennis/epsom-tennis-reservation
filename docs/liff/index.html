@@ -1283,7 +1283,6 @@ function doSubmit() {
         lines.push('プロフィール情報を更新しました。\nありがとうございます！');
       }
       document.getElementById('sbody').textContent = lines.join('\n\n');
-      if (res._debugUserId) document.getElementById('sbody').textContent += '\n\n[DEBUG userId: ' + res._debugUserId + ']\n[push: ' + (res._debugPush || '-') + ']';
       document.getElementById('success').style.display = '';
       document.getElementById('saction').innerHTML =
         '<button class="btn" style="max-width:300px;margin:20px auto 0;display:block;background:#4a90d9" onclick="reApply()">続けて別の応募をする</button>';

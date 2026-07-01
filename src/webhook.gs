@@ -160,6 +160,10 @@ function handleOuboStatus(event) {
             status = '応募済み（落選）';
           } else if (result === 'キャンセル') {
             status = '応募済み（キャンセル）';
+          } else if (isOnline) {
+            // オンラインは当落なし。締め切りなしなら複数回応募可能を案内
+            const hasDeadline = !!(ev.closingDate || ev.closingDateTimeAt);
+            status = hasDeadline ? '応募済み ✅' : '応募済み ✅\nこちらのイベントは複数回応募可能です！';
           } else {
             status = '応募済み（当落発表前）';
           }
@@ -175,7 +179,12 @@ function handleOuboStatus(event) {
         const appData = appSheet.getDataRange().getValues();
         for (let i = 1; i < appData.length; i++) {
           if (appData[i][18] === userId) {
-            status = '応募済み（当落発表前）';
+            if (isOnline) {
+              const hasDeadline = !!(ev.closingDate || ev.closingDateTimeAt);
+              status = hasDeadline ? '応募済み ✅' : '応募済み ✅\nこちらのイベントは複数回応募可能です！';
+            } else {
+              status = '応募済み（当落発表前）';
+            }
             break;
           }
         }
@@ -199,8 +208,8 @@ function handleOuboStatus(event) {
       }
     }
 
-    // 応募済み（当落発表前）の場合、当落通知予定日があれば追記する
-    if (status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
+    // オフラインのみ：応募済み（当落発表前）の場合、当落通知予定日があれば追記する
+    if (!isOnline && status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
       const fmt = Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日');
       status += `\n（当落は${fmt}頃にお知らせします）`;
     }
@@ -214,10 +223,12 @@ function handleOuboStatus(event) {
   if (offlineLines.length > 0) sections.push(`『オフラインイベント』\n\n` + offlineLines.join('\n\n'));
   if (onlineLines.length > 0) sections.push(`『オンラインイベント』\n\n` + onlineLines.join('\n\n'));
 
+  const footer = '\n\n──────────\n都合が悪くなってキャンセルを希望される場合や、情報を間違えて入力していた場合は、その旨をこのLINEにご連絡ください。担当者が確認いたします。';
+
   if (sections.length === 0) {
-    replyMessage(replyToken, '現在参加受付中のイベントはありません。');
+    replyMessage(replyToken, '現在参加受付中のイベントはありません。' + footer);
   } else {
-    replyMessage(replyToken, sections.join('\n\n──────────\n\n'));
+    replyMessage(replyToken, sections.join('\n\n──────────\n\n') + footer);
   }
 
   logAction(userId, '応募状況照会', '', '');
