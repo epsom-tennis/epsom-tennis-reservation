@@ -95,6 +95,29 @@ function handleOubo(event) {
   }
 }
 
+// 応募状況デバッグ：GASエディタから直接実行して当落シートにSTAFF_USER_IDがあるかチェック
+function debugApplicationStatus() {
+  const userId = getProp('STAFF_USER_ID');
+  Logger.log('確認userId: ' + userId);
+  const allEvents = getAllEvents();
+  Logger.log('イベント数: ' + allEvents.length);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (const ev of allEvents) {
+    const sheet = getSheet(ev.resultSheetName);
+    if (!sheet) { Logger.log('[' + ev.name + '] シートなし: ' + ev.resultSheetName); continue; }
+    const data = sheet.getDataRange().getValues();
+    Logger.log('[' + ev.name + '] シート行数=' + data.length + ' eventDate=' + ev.eventDate);
+    let found = false;
+    for (let i = 0; i < data.length; i++) {
+      const cellVal = String(data[i][1] || '');
+      Logger.log('  row' + i + ' B列=' + cellVal + ' 一致=' + (cellVal === userId));
+      if (cellVal === userId) { found = true; break; }
+    }
+    Logger.log('[' + ev.name + '] 結果: ' + (found ? '応募済み' : '未発見'));
+  }
+}
+
 // 「応募状況」メッセージを受信した時の処理
 // 設定シートの全イベントを走査し、開催日が今日以降のものをすべて1通にまとめて返信する
 function handleOuboStatus(event) {

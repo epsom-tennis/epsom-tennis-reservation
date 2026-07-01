@@ -200,6 +200,8 @@ function submitLiffApplication(data) {
       return { success: false, error: '選択したイベントはすでに応募済みです。' };
     }
 
+    let _pushResult = null;
+
     if (appliedNames.length > 0) {
       const namesPart = appliedParticipantNames.length > 0
         ? appliedParticipantNames.map(n => n + ' 様').join('、')
@@ -230,8 +232,8 @@ function submitLiffApplication(data) {
       }
 
       const pushMsg = msgParts.join('\n\n');
-      const pushResult = pushMessage(data.userId, pushMsg);
-      Logger.log('PUSH userId=' + data.userId + ' result=' + JSON.stringify(pushResult));
+      _pushResult = pushMessage(data.userId, pushMsg);
+      Logger.log('PUSH userId=' + data.userId + ' result=' + JSON.stringify(_pushResult));
 
       // 動画相談の場合はLINEへの動画送信を依頼
       if ((data.onlineConsultType || '') === 'video') {
@@ -240,10 +242,11 @@ function submitLiffApplication(data) {
       const nowStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'MM/dd HH:mm');
       notifyStaff(`✅ LIFF応募 ${nowStr}\n${appliedParticipantNames.join('、')}（計${appliedParticipantNames.length}名）\n${appliedNames.join('、')}`);
     } else {
-      pushMessage(data.userId, getMsgTemplate_(data.isNewRegistration ? 'registration_done' : 'profile_done'));
+      _pushResult = pushMessage(data.userId, getMsgTemplate_(data.isNewRegistration ? 'registration_done' : 'profile_done'));
+      Logger.log('PUSH(profile) userId=' + data.userId + ' result=' + JSON.stringify(_pushResult));
     }
 
-    return { success: true, appliedEvents: appliedNames, _debugUserId: data.userId, _debugPush: typeof pushResult !== 'undefined' ? JSON.stringify(pushResult) : 'not_called' };
+    return { success: true, appliedEvents: appliedNames, _debugUserId: data.userId, _debugPush: JSON.stringify(_pushResult) };
 
   } catch (err) {
     Logger.log('submitLiffApplication error: ' + err.toString());

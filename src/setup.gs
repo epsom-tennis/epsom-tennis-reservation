@@ -489,12 +489,13 @@ function addEventTypeHeader() {
 
 // システム診断（テスト用）：シート存在確認・スクリプトプロパティ確認・実データ確認
 function runDiagnose() {
-  const result = { props: {}, sheets: {}, membersLastRows: [], actionLogLastRows: [], errors: [] };
+  const result = { props: {}, sheets: {}, membersLastRows: [], actionLogLastRows: [], userIdCheck: {}, errors: [] };
   try {
     result.props.spreadsheetId  = !!getProp('SPREADSHEET_ID');
     result.props.lineToken      = !!getProp('LINE_CHANNEL_ACCESS_TOKEN');
     result.props.liffId         = !!getProp('LIFF_ID');
     result.props.dashboardToken = !!getProp('DASHBOARD_TOKEN');
+    result.props.staffUserId    = getProp('STAFF_USER_ID') || '(未設定)';
   } catch (e) { result.errors.push('props: ' + e.toString()); }
 
   try {
@@ -513,12 +514,37 @@ function runDiagnose() {
       result.membersLastRows = lastRows.map(r => ({ col_B_userId: String(r[1]), col_C_code: String(r[2]), col_E_name: String(r[4]) }));
     }
 
-    // アクション履歴の末尾3行を取得
+    // アクション履歴の末尾5行を取得（LIFF応募のuserIdを確認するため）
     const logSheet = ss.getSheetByName(SHEET.ACTION_LOG);
     if (logSheet && logSheet.getLastRow() > 1) {
-      result.actionLogLastRows = logSheet.getDataRange().getValues().slice(-3)
+      result.actionLogLastRows = logSheet.getDataRange().getValues().slice(-5)
         .map(r => ({ time: String(r[0]), userId: String(r[1]), action: String(r[2]) }));
     }
+
+    // userId一致チェック：STAFF_USER_IDとLIFF応募で記録されたuserIdを比較
+    const staffId = getProp('STAFF_USER_ID') || '';
+    const liffApplyRows = result.actionLogLastRows.filter(r => r.action === 'LIFF応募');
+    const liffUserId = liffApplyRows.length > 0 ? liffApplyRows[liffApplyRows.length - 1].userId : '(LIFF応募記録なし)';
+    result.userIdCheck = {
+      staffUserId: staffId,
+      liffUserId: liffUserId,
+      match: staffId && liffUserId !== '(LIFF応募記録なし)' ? (staffId === liffUserId) : null,
+    };
+
+    // 当落シートのuserId確認
+    const allEvents = getAllEvents();
+    result.resultSheetCheck = allEvents.slice(0, 5).map(ev => {
+      const sheet = ss.getSheetByName(ev.resultSheetName);
+      if (!sheet || sheet.getLastRow() <= 1) return { event: ev.name, status: 'データなし' };
+      const rows = sheet.getDataRange().getValues().slice(1); // ヘッダー除く
+      const lastRow = rows[rows.length - 1];
+      const sheetUserId = String(lastRow[1] || '');
+      return {
+        event: ev.name,
+        sheetUserId: sheetUserId,
+        matchesStaff: sheetUserId === staffId,
+      };
+    });
   } catch (e) { result.errors.push('sheets: ' + e.toString()); }
 
   return result;
