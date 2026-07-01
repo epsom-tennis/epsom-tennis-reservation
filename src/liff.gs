@@ -56,6 +56,13 @@ function getMemberData(userId) {
   }
 }
 
+// Sheetsが日付型に自動変換した値をYYYY-MM-DD文字列に戻す
+function formatDateValue_(v) {
+  if (!v) return '';
+  if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+  return String(v);
+}
+
 function extractMemberRow_(row) {
   return {
     name:          String(row[4]  || ''),
@@ -70,7 +77,7 @@ function extractMemberRow_(row) {
     tennisHistory: String(row[14] || ''),
     tennisArea:    String(row[15] || ''),
     tennisEnv:     String(row[16] || ''),
-    birthDate:     String(row[17] || ''),
+    birthDate:     formatDateValue_(row[17]),
     prefecture:    String(row[18] || ''),
   };
 }
@@ -127,7 +134,7 @@ function submitLiffApplication(data) {
         membersSheet.getRange(memberRow, 15).setValue(p.tennisHistory || '');
         membersSheet.getRange(memberRow, 16).setValue(areaStr);
         membersSheet.getRange(memberRow, 17).setValue(envStr);
-        membersSheet.getRange(memberRow, 18).setValue(p.birthDate || '');
+        membersSheet.getRange(memberRow, 18).setNumberFormat('@').setValue(p.birthDate || '');
         membersSheet.getRange(memberRow, 19).setValue(p.prefecture || '');
       } else {
         membersSheet.appendRow([
@@ -136,10 +143,11 @@ function submitLiffApplication(data) {
           emergency, p.tennisFreq || '', p.tennisHistory || '', areaStr, envStr,
           p.birthDate || '', p.prefecture || '',
         ]);
-        // appendRowは数値扱いで書き込まれるため、電話番号列だけ書式をテキスト固定して再書き込みする
+        // appendRowは数値扱いで書き込まれるため、電話番号と生年月日はテキスト書式で再書き込みする
         const newMemberRow = membersSheet.getLastRow();
         membersSheet.getRange(newMemberRow, 11).setNumberFormat('@').setValue(phone);
         membersSheet.getRange(newMemberRow, 13).setNumberFormat('@').setValue(emergency);
+        if (p.birthDate) membersSheet.getRange(newMemberRow, 18).setNumberFormat('@').setValue(p.birthDate);
       }
 
       // 各選択イベントの当落シートに応募行を追加
