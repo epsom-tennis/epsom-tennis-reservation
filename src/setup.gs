@@ -73,7 +73,6 @@ function setupSpreadsheet() {
   if (configSheet.getLastRow() > 0 && !configSheet.getRange(1, 14).getValue()) {
     configSheet.getRange(1, 14).setValue('状態');
   }
-
   // アクション履歴シート
   let actionSheet = ss.getSheetByName(SHEET.ACTION_LOG);
   if (!actionSheet) {
@@ -162,11 +161,11 @@ function createNewEvent(data) {
     if (!resultSheet) {
       resultSheet = ss.insertSheet(resultSheetName);
       const baseHeaders = ['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認'];
-      // 実際の応募データ（submitLiffApplication）はJ列（参加確認）まではオンライン・オフライン共通。オンラインのみK列以降に「配信名,お悩み内容,相談方法,電話相談希望,電話番号,動画状態,動画URL,対応状況」の順で書き込まれる
-      const onlineHeaders = (eventType || 'オフライン') === 'オンライン'
+      // K列以降: オンラインは配信情報、オフラインは撮影可否
+      const extraHeaders = (eventType || 'オフライン') === 'オンライン'
         ? ['配信名（ひらがな）', 'お悩み内容', '相談方法', '電話相談希望', '電話番号', '動画状態', '動画URL', '対応状況']
-        : [];
-      resultSheet.appendRow(baseHeaders.concat(onlineHeaders));
+        : ['撮影可否'];
+      resultSheet.appendRow(baseHeaders.concat(extraHeaders));
       resultSheet.setFrozenRows(1);
     }
 

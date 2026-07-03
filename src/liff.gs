@@ -63,6 +63,17 @@ function formatDateValue_(v) {
   return String(v);
 }
 
+// 複数オフラインイベントの当落発表日からテンプレート用の文字列を生成する
+// 例: [Date(7/15), Date(7/15)] → "7月15日頃に"  /  [null] → "後日"
+function buildOfflineResultDateStr_(dates) {
+  const formatted = dates
+    .filter(function(d) { return d instanceof Date; })
+    .map(function(d) { return Utilities.formatDate(d, 'Asia/Tokyo', 'M月d日'); })
+    .filter(function(v, i, a) { return a.indexOf(v) === i; });
+  if (formatted.length === 0) return '後日';
+  return formatted.join('・') + '頃に';
+}
+
 function extractMemberRow_(row) {
   return {
     name:          String(row[4]  || ''),
@@ -92,9 +103,12 @@ function submitLiffApplication(data) {
 
     const membersSheet = getSheet(SHEET.MEMBERS);
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+    const allServerEvents = getAllEvents(); // 開催日・当落発表日はサーバー側から取得する
     const appliedNames = [];
     const appliedOnlineNames = [];
     const appliedOfflineNames = [];
+    const appliedOfflineResultDates = []; // appliedOfflineNamesと並行：当落発表予定日(Date or null)
+    const appliedOfflineEventDates  = []; // appliedOfflineNamesと並行：開催日(Date or null)
     const appliedParticipantNames = []; // 新規応募した参加者のフルネーム
 
     // 主参加者 + 追加参加者をまとめて処理
@@ -183,7 +197,7 @@ function submitLiffApplication(data) {
             isVideo ? '待ち' : '',           // P: 動画状態
             '',                              // Q: 動画URL
             '未確認',                        // R: 対応状況（スタッフ管理用・未確認/確認中/回答済）
-          ] : [])
+          ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
         if (isOnline && onlineConsultPhoneNorm) {
           // appendRowは数値扱いで書き込まれるため、電話番号列（O列=15）だけ書式をテキスト固定して再書き込みする
@@ -194,7 +208,13 @@ function submitLiffApplication(data) {
         if (!appliedNames.includes(ev.name)) {
           appliedNames.push(ev.name);
           if (isOnline) appliedOnlineNames.push(ev.name);
-          else appliedOfflineNames.push(ev.name);
+          else {
+            // 開催日・当落発表日はクライアントデータには含まれないためサーバー側から取得する
+            const serverEv = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
+            appliedOfflineNames.push(ev.name);
+            appliedOfflineResultDates.push(serverEv ? (serverEv.resultAnnouncementDate || null) : null);
+            appliedOfflineEventDates.push(serverEv ? (serverEv.eventDate || null) : null);
+          }
         }
       }
       // 1件でも新規応募があれば参加者名を記録
@@ -218,8 +238,16 @@ function submitLiffApplication(data) {
 
       // オフラインイベント：当落通知あり
       if (appliedOfflineNames.length > 0) {
+        const resultDate = buildOfflineResultDateStr_(appliedOfflineResultDates);
         msgParts.push(renderTemplate_(getMsgTemplate_('offline_apply'), {
-          events: appliedOfflineNames.map(n => '・' + n).join('\n'),
+          events: appliedOfflineNames.map(function(name, idx) {
+            const d = appliedOfflineEventDates[idx];
+            const r = appliedOfflineResultDates[idx];
+            const dateLine   = d instanceof Date ? Utilities.formatDate(d, 'Asia/Tokyo', 'M月d日') + '開催\n' : '';
+            const resultLine = r instanceof Date ? '\n（当落結果' + Utilities.formatDate(r, 'Asia/Tokyo', 'M月d日') + '頃お知らせ予定）' : '';
+            return dateLine + '・' + name + resultLine;
+          }).join('\n\n'),
+          resultDate,
         }));
       }
 

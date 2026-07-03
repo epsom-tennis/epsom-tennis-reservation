@@ -123,6 +123,8 @@ var MEDIA_HTML = MEDIA_HTML_FREE;
 
 var MEDIA_ONLINE_HTML = 'ご応募いただいた動画およびご相談内容は、YouTube生配信「テニスポットラジオ」、アーカイブ配信、SNS投稿、切り抜き動画、Webサイト等で使用させていただく場合があります。\n\nまた、配信・投稿の際に動画の一部を編集・加工して使用する場合があります。\n\n応募後および配信後は、原則として動画の削除依頼や公開停止のご要望にはお応えできません。';
 
+var SHOOTING_CONSENT_HTML = '当日のレッスンの様子は撮影を行い、コーチからのアドバイスを含めた動画をYouTubeにて公開する場合があります。\n\n・ダイジェスト動画は、発信可否にかかわらず映り込む場合があります。\n・顔へのモザイク処理は可能な限り対応いたしますが、撮影状況により一部対応が難しい場合があります。\n・発信にご同意いただいた方は、コーチからのアドバイスを含むプレー動画をYouTubeにて公開予定です。公開後はご自身のプレーの振り返りにもご活用いただけます。\n・発信にご同意いただいた方は、抽選時に優先してご案内させていただく場合があります。';
+
 var MODAL_HTML =
   '<div id="addParticipantModal" class="add-modal-backdrop" style="display:none">' +
     '<div style="background:#fff;border-radius:14px;padding:20px 18px;max-width:440px;width:100%">' +
@@ -783,10 +785,27 @@ function updateConsentSections() {
   // オフラインの撮影同意はisFreeEventで無料/有料を切り替える（複数選択時は最初のオフラインイベントで判定）
   var offlineEvIdx = evIdxs.find(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン'; });
   var offlineMediaHtml = (offlineEvIdx != null && eventsData[parseInt(offlineEvIdx)].isFreeEvent) ? MEDIA_HTML_FREE : MEDIA_HTML_PAID;
+  var hasOfflinePaid = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && !ev.isFreeEvent; });
   var html = '';
   if (hasOffline) html += buildConsentCard('offline', 'オフラインイベント 利用規約・プライバシーポリシー', TOS_OFFLINE_HTML, '📸 撮影・インタビューへのご協力について', offlineMediaHtml, 'mediaCons', '撮影・インタビュー（顔出しあり）への協力に同意します');
+  if (hasOfflinePaid) html += buildShootingConsentCard();
   if (hasOnline)  html += buildConsentCard('online',  'ビデオ相談企画 応募規約・プライバシーポリシー',     TOS_ONLINE_HTML,  '📹 動画・配信利用について',                      MEDIA_ONLINE_HTML, 'videoCons', '上記内容を確認し、同意のうえ応募します');
   container.innerHTML = html;
+}
+
+function buildShootingConsentCard() {
+  return '<div class="card" style="margin-bottom:10px">' +
+    '<div class="sec-label">📸 撮影・発信について</div>' +
+    '<div class="media-box" style="white-space:pre-wrap">' + h(SHOOTING_CONSENT_HTML) + '</div>' +
+    '<div class="fg" style="margin-top:12px">' +
+      '<label class="fl">撮影・発信への同意<span class="req">*</span></label>' +
+      '<div class="rlist">' +
+        '<label class="opt"><input type="radio" name="shootingConsent" value="発信OK（モザイクなし）"><span>発信OK（モザイクなし）</span></label>' +
+        '<label class="opt"><input type="radio" name="shootingConsent" value="発信OK（モザイクあり）"><span>発信OK（モザイクあり）</span></label>' +
+        '<label class="opt"><input type="radio" name="shootingConsent" value="発信NG"><span>発信NG</span></label>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function buildConsentCard(type, tosLabel, tosHtml, mediaLabel, mediaHtml, mediaId, mediaCheckText) {
@@ -1131,11 +1150,13 @@ function doSubmit() {
 
   var hasOfflineEv = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン'; });
   var hasOnlineEv  = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') === 'オンライン'; });
+  var hasOfflinePaidEv = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && !ev.isFreeEvent; });
   if (hasOfflineEv) {
     var oTos = document.getElementById('tos_offline'); var oCons = document.getElementById('mediaCons');
     if (!oTos || !oTos.checked)  errs.push('オフラインイベントの利用規約への同意が必要です。');
     if (!oCons || !oCons.checked) errs.push('撮影・インタビューへの協力同意が必要です。');
   }
+  if (hasOfflinePaidEv && !rv('shootingConsent')) errs.push('撮影・発信についての選択が必要です。');
   if (hasOnlineEv) {
     var nTos = document.getElementById('tos_online'); var nCons = document.getElementById('videoCons');
     if (!nTos || !nTos.checked)  errs.push('ビデオ相談企画の応募規約への同意が必要です。');
@@ -1203,6 +1224,7 @@ function doSubmit() {
       onlineConcern:       val('onConcern'),
       onlinePhoneConsult:  consultType === 'video' ? rv('onPhoneConsult')  : '',
       onlineConsultPhone:  consultType === 'video' ? val('onConsultPhone') : '',
+      shootingConsent:     rv('shootingConsent'),
     })
   })
   .then(function(r){ return r.json(); })

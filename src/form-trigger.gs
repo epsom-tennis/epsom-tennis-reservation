@@ -96,15 +96,28 @@ function onFormSubmit(e) {
       ];
       for (const f of extraFields) {
         const val = String((e.namedValues[f.key] || [''])[0]).trim();
-        if (val) membersSheet.getRange(memberRow, f.col).setValue(val);
+        if (!val) continue;
+        const range = membersSheet.getRange(memberRow, f.col);
+        // 電話番号は数値扱いされると頭の0が消えるため、書式をテキスト固定してから書き込む
+        if (f.col === 11) range.setNumberFormat('@');
+        range.setValue(val);
       }
     }
 
     // 参加者に応募完了通知を送信
+    const ev = getAllEvents().find(function(e) { return e.resultSheetName === resultSheetName; });
+    const resultDateStr = (ev && ev.resultAnnouncementDate instanceof Date)
+      ? Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日') + '頃に'
+      : '後日';
+    const evDateLine = (ev && ev.eventDate instanceof Date)
+      ? Utilities.formatDate(ev.eventDate, 'Asia/Tokyo', 'M月d日') + '開催\n'
+      : '';
+    const resultLine = (ev && ev.resultAnnouncementDate instanceof Date)
+      ? '\n（当落結果' + Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日') + '頃お知らせ予定）'
+      : '';
+    const eventBlock = evDateLine + '・' + (ev ? ev.name : 'イベント') + resultLine;
     pushMessage(userId,
-      `応募を受け付けました！\n\n` +
-      `当落結果は後日このLINEでお知らせします。\n` +
-      `しばらくお待ちください。`
+      `${eventBlock}\nの応募を受け付けました！\n\nしばらくお待ちください。`
     );
 
     // スタッフグループに受付完了ログを投稿

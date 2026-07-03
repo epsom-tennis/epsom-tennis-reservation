@@ -68,8 +68,8 @@ const MESSAGE_TEMPLATE_DEFS = [
   {
     key: 'offline_apply',
     label: 'オフラインイベント 応募受付',
-    vars: ['events'],
-    default: '【オフラインイベント】\n{events}\n\n当落結果は後日このLINEでお知らせします。\nしばらくお待ちください。',
+    vars: ['events', 'resultDate'],
+    default: '{events}\n\nしばらくお待ちください。',
   },
   {
     key: 'online_text_apply',

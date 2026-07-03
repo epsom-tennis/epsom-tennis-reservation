@@ -261,9 +261,10 @@ function getApplicants(appSheetName, resultSheetName) {
       appliedAt,
       result:         String(data[i][2] || ''),
       sent:           String(data[i][3] || ''),
-      coachKnowledge: String(data[i][5] || ''),
-      confirmation:   String(data[i][9] || ''),
-      winCount:       winCountMap[baseUserId] || 0,
+      coachKnowledge:  String(data[i][5]  || ''),
+      confirmation:    String(data[i][9]  || ''),
+      shootingConsent: String(data[i][10] || ''),
+      winCount:        winCountMap[baseUserId] || 0,
       age:            mInfo.age           || '',
       gender:         mInfo.gender        || '',
       tennisLevel:    mInfo.tennisLevel   || '',
@@ -937,7 +938,7 @@ function getDashboardHtml() {
 '<table class="table table-sm table-hover bg-white">' +
 '<thead class="table-light">' +
 '<tr><th style="width:36px"><input type="checkbox" id="chkAll" onchange="toggleAllChecks(this.checked)"></th>' +
-'<th>名前</th><th>年齢</th><th>性別</th><th>レベル</th><th>テニス歴</th><th>頻度</th><th>応募日時</th><th>当落</th><th>当選回数</th><th>コーチ認知</th><th>通知</th><th>操作</th></tr>' +
+'<th>名前</th><th>年齢</th><th>性別</th><th>レベル</th><th>テニス歴</th><th>頻度</th><th>応募日時</th><th>当落</th><th>当選回数</th><th>撮影可否</th><th>コーチ認知</th><th>通知</th><th>操作</th></tr>' +
 '</thead>' +
 '<tbody id="applicantBody"></tbody>' +
 '</table>' +
@@ -1698,6 +1699,7 @@ function getDashboardHtml() {
 '"<td class=\'text-muted small\'>"+ap.appliedAt+"</td>"+' +
 '"<td class=\'"+cls+"\'>"+( ap.result||"未処理")+confBadge+"</td>"+' +
 '"<td class=\'text-center small\'>"+(ap.winCount||0)+"</td>"+' +
+'"<td class=\'text-center small\'>"+(ap.shootingConsent||"")+"</td>"+' +
 '"<td class=\'text-muted small\'>"+ap.coachKnowledge+"</td>"+' +
 '"<td>"+sentBadge+"</td>"+' +
 '"<td>"+' +
