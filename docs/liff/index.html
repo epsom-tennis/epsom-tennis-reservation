@@ -552,9 +552,9 @@ function buildSingleEventHtml(ev, i) {
         '<label class="fl">ペアの相手のお名前<span class="req">*</span></label>' +
         '<input type="text" id="pairPartnerName_' + i + '" placeholder="山田 花子">' +
       '</div>' +
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">備考<span class="sec-note">（任意）</span></label>' +
-      '<input type="text" id="freeText_' + i + '" placeholder=""></div>' +
-      '<div class="fg"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>';
+      '<div class="fg"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>' +
+      '<div class="fg"><label class="fl">備考<span class="sec-note">（任意）</span></label>' +
+      '<input type="text" id="freeText_' + i + '" placeholder=""></div>';
   } else {
     perEvQ =
       '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
