@@ -226,6 +226,7 @@ function submitLiffApplication(data) {
           ] : isTournament ? [
             ev.participantForm  || '',       // K: 参加形式（1人/ペア）
             ev.pairPartnerName  || '',       // L: ペア相手名
+            ev.freeText         || '',       // M: 限定コード・備考
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
         // 大会：先着順のため応募時点で当選確定・通知済みとして記録する

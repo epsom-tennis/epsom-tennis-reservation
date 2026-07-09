@@ -166,7 +166,7 @@ function createNewEvent(data) {
       const extraHeaders = isOnline
         ? ['配信名（ひらがな）', 'お悩み内容', '相談方法', '電話相談希望', '電話番号', '動画状態', '動画URL', '対応状況']
         : isTournament
-          ? ['参加形式', 'ペア相手名']
+          ? ['参加形式', 'ペア相手名', 'コード/備考']
           : ['撮影可否'];
       resultSheet.appendRow(baseHeaders.concat(extraHeaders));
       resultSheet.setFrozenRows(1);
