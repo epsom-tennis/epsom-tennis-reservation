@@ -129,11 +129,13 @@ function handleOuboStatus(event) {
 
   const allEvents = getAllEvents();
   const offlineLines = [];
+  const tournamentLines = [];
   const onlineLines = [];
 
   for (const ev of allEvents) {
-    // 停止中・応募開始前・開催日が過去のイベントは表示しない
+    // 停止中・応募状況非表示・応募開始前・開催日が過去のイベントは表示しない
     if (ev.status === '停止') continue;
+    if (ev.ouboStatusHidden) continue;
     if (ev.openingDate && ev.openingDate > today) continue;
     if (ev.eventDate) {
       const d = new Date(ev.eventDate);
@@ -142,6 +144,7 @@ function handleOuboStatus(event) {
     }
 
     const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
+    const isTournament = (ev.eventType || 'オフライン') === '大会';
     let status = '';
 
     // 当落シートB列でUser IDを検索（LIFF応募・Google Form応募の両方が入る）
@@ -152,10 +155,15 @@ function handleOuboStatus(event) {
         if (String(resultData[i][1]) === userId) {
           const result = String(resultData[i][2] || '');
           if (result === '当選') {
-            const conf = String(resultData[i][9] || '');
-            if (conf === '確認済') status = '応募済み（当選・参加確定）';
-            else if (conf === '確認待ち') status = '応募済み（当選・参加確認待ち）';
-            else status = '応募済み（当選）';
+            if (isTournament) {
+              // 大会は先着順で即確定のため「参加確定」と表示する
+              status = '応募済み（参加確定）✅';
+            } else {
+              const conf = String(resultData[i][9] || '');
+              if (conf === '確認済') status = '応募済み（当選・参加確定）';
+              else if (conf === '確認待ち') status = '応募済み（当選・参加確認待ち）';
+              else status = '応募済み（当選）';
+            }
           } else if (result === '落選') {
             status = '応募済み（落選）';
           } else if (result === 'キャンセル') {
@@ -191,6 +199,32 @@ function handleOuboStatus(event) {
       }
     }
 
+    // 大会で未応募の場合：定員チェックを行い満員・残り枠少を先行表示する
+    if (!status && isTournament && ev.capacity > 0) {
+      const currentCount = countTournamentParticipants_(ev.resultSheetName);
+      const remaining = ev.capacity - currentCount;
+      if (remaining <= 0) {
+        status = '満員（応募終了）';
+      } else if (remaining / ev.capacity <= 0.20) {
+        // 残り枠少の場合は枠数は表示せず警告のみ
+        if (ev.closingDateTimeAt) {
+          const isOpen = ev.closingDateTimeAt >= new Date();
+          const fmt = Utilities.formatDate(ev.closingDateTimeAt, 'Asia/Tokyo', 'M月d日 H:mm');
+          status = isOpen
+            ? `⚠️ 残り枠が少なくなっています（${fmt}まで受付中）`
+            : '⚠️ 残り枠が少なくなっています（応募期間終了）';
+        } else if (ev.closingDate) {
+          const closing = new Date(ev.closingDate);
+          closing.setHours(0, 0, 0, 0);
+          status = closing >= today
+            ? '⚠️ 残り枠が少なくなっています（応募期間中）'
+            : '⚠️ 残り枠が少なくなっています（応募期間終了）';
+        } else {
+          status = '⚠️ 残り枠が少なくなっています';
+        }
+      }
+    }
+
     // どこにも存在しない場合は募集終了日時で期間中か終了かを判定
     // closingDateTimeAt（日時）があればそちらを優先し時刻も表示する
     // オンラインイベントで締め切りなしの場合は「常時募集中」と表示する
@@ -209,18 +243,20 @@ function handleOuboStatus(event) {
     }
 
     // オフラインのみ：応募済み（当落発表前）の場合、当落通知予定日があれば追記する
-    if (!isOnline && status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
+    if (!isOnline && !isTournament && status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
       const fmt = Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日');
       status += `\n（当落は${fmt}頃にお知らせします）`;
     }
 
     const line = `【${ev.name}】\n${status}`;
     if (isOnline) onlineLines.push(line);
+    else if (isTournament) tournamentLines.push(line);
     else offlineLines.push(line);
   }
 
   const sections = [];
   if (offlineLines.length > 0) sections.push(`『オフラインイベント』\n\n` + offlineLines.join('\n\n'));
+  if (tournamentLines.length > 0) sections.push(`『大会』\n\n` + tournamentLines.join('\n\n'));
   if (onlineLines.length > 0) sections.push(`『オンラインイベント』\n\n` + onlineLines.join('\n\n'));
 
   const footer = '\n\n──────────\n都合が悪くなってキャンセルを希望される場合や、情報を間違えて入力していた場合は、その旨をこのLINEにご連絡ください。担当者が確認いたします。';

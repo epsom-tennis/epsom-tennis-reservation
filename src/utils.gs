@@ -64,6 +64,14 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 25).getValue()) {
     sheet.getRange(1, 25).setValue('無料イベント');
   }
+  // Z列：定員（大会イベント専用。先着順の最大参加人数）
+  if (!sheet.getRange(1, 26).getValue()) {
+    sheet.getRange(1, 26).setValue('定員');
+  }
+  // AA列：応募状況非表示（TRUEにすると「応募状況」送信時にこのイベントを表示しない）
+  if (!sheet.getRange(1, 27).getValue()) {
+    sheet.getRange(1, 27).setValue('応募状況非表示');
+  }
 }
 
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
@@ -102,6 +110,8 @@ function getAllEvents() {
     const closingDateTimeAt   = data[i][22] ? new Date(data[i][22]) : null; // W列：募集締め切り日時（時刻込み）
     const resultAnnouncementDate = data[i][23] ? new Date(data[i][23]) : null; // X列：当落通知予定日
     const isFreeEvent         = data[i][24] === true || String(data[i][24]).toUpperCase() === 'TRUE'; // Y列：無料イベントフラグ
+    const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（大会専用。先着順の最大参加人数）
+    const ouboStatusHidden    = data[i][26] === true || String(data[i][26]).toUpperCase() === 'TRUE'; // AA列：応募状況非表示フラグ
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
@@ -109,7 +119,7 @@ function getAllEvents() {
       name, eventDate, closingDate, openingDate, appSheetName, resultSheetName, winMsg, loseMsg,
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent,
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
     });
   }
   return events;
@@ -213,6 +223,24 @@ function notifyStaff(text) {
     return;
   }
   return pushMessage(groupId, text);
+}
+
+// 大会シートの現在参加人数をカウント（ペア=2名、1人=1名として集計）
+function countTournamentParticipants_(resultSheetName) {
+  try {
+    const sheet = getSheet(resultSheetName);
+    if (!sheet || sheet.getLastRow() <= 1) return 0;
+    const data = sheet.getDataRange().getValues();
+    let count = 0;
+    for (let i = 1; i < data.length; i++) {
+      const form = String(data[i][10] || ''); // K列：参加形式
+      count += (form === 'ペア') ? 2 : 1;
+    }
+    return count;
+  } catch (err) {
+    Logger.log('countTournamentParticipants_ error: ' + err.toString());
+    return 0;
+  }
 }
 
 // アラートメールを ALERT_EMAIL 宛に送信（attachmentsを渡すとBlobを添付する。動画相談の動画添付などで使用）

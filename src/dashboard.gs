@@ -120,20 +120,33 @@ function getLiffEventsJson(userId) {
       }
     }
 
-    return filtered.map(ev => ({
-      name:            ev.name,
-      resultSheetName: ev.resultSheetName,
-      eventDate:       formatDateWithDay(ev.eventDate),
-      closingDate:     ev.closingDate ? Utilities.formatDate(ev.closingDate, 'Asia/Tokyo', 'yyyy/MM/dd') : '',
-      eventTime:       ev.eventTime   || '',
-      venue:           ev.venue       || '',
-      coachName:       ev.coachName   || '',
-      description:     ev.description || '',
-      eventType:       ev.eventType   || 'オフライン',
-      channelUrl:      ev.channelUrl  || '',
-      isFreeEvent:     ev.isFreeEvent === true,
-      alreadyApplied:  appliedSheets.has(ev.resultSheetName),
-    }));
+    return filtered.map(ev => {
+      const isTournament = ev.eventType === '大会';
+      let capacityStatus = '';
+      if (isTournament && ev.capacity > 0) {
+        const current = countTournamentParticipants_(ev.resultSheetName);
+        const remaining = ev.capacity - current;
+        if (remaining <= 0) capacityStatus = 'full';
+        else if (remaining / ev.capacity <= 0.20) capacityStatus = 'low';
+        else capacityStatus = 'normal';
+      }
+      return {
+        name:            ev.name,
+        resultSheetName: ev.resultSheetName,
+        eventDate:       formatDateWithDay(ev.eventDate),
+        closingDate:     ev.closingDate ? Utilities.formatDate(ev.closingDate, 'Asia/Tokyo', 'yyyy/MM/dd') : '',
+        eventTime:       ev.eventTime   || '',
+        venue:           ev.venue       || '',
+        coachName:       ev.coachName   || '',
+        description:     ev.description || '',
+        eventType:       ev.eventType   || 'オフライン',
+        channelUrl:      ev.channelUrl  || '',
+        isFreeEvent:     ev.isFreeEvent === true,
+        alreadyApplied:  appliedSheets.has(ev.resultSheetName),
+        capacity:        ev.capacity    || 0,
+        capacityStatus,
+      };
+    });
   } catch (err) {
     Logger.log('getLiffEventsJson error: ' + err.toString());
     return [];
@@ -191,7 +204,9 @@ function getEventsData() {
       confirmDeadlineAtISO: ev.confirmDeadlineAt ? Utilities.formatDate(ev.confirmDeadlineAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       closingDateTimeAtISO: ev.closingDateTimeAt ? Utilities.formatDate(ev.closingDateTimeAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       resultAnnouncementDateISO: ev.resultAnnouncementDate ? Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'yyyy-MM-dd') : '',
-      isFreeEvent: ev.isFreeEvent === true,
+      isFreeEvent:      ev.isFreeEvent      === true,
+      capacity:         ev.capacity         || 0,
+      ouboStatusHidden: ev.ouboStatusHidden === true,
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -493,6 +508,9 @@ function sendLiffLinksToStaff() {
     '',
     '📝 文章相談（文章相談を自動選択）',
     base + '?type=online&consult=text',
+    '',
+    '🏆 大会応募',
+    base + '?type=tournament',
   ].join('\n');
   pushMessage(staffUserId, text);
   return { success: true };
@@ -808,8 +826,12 @@ function getDashboardHtml() {
 '<option value="オフライン">📍 オフライン</option>' +
 '<option value="オンライン">💻 オンライン</option>' +
 '<option value="選手交流">🤝 選手交流</option>' +
+'<option value="大会">🏆 大会</option>' +
 '</select></div>' +
-'<div class="col-4 d-flex align-items-end pb-1"><div class="form-check"><input type="checkbox" class="form-check-input" id="ne_is_free"><label class="form-check-label fw-bold" for="ne_is_free">無料イベント</label></div></div>' +
+'<div class="col-4 d-flex align-items-end pb-1">' +
+'<div class="form-check"><input type="checkbox" class="form-check-input" id="ne_is_free"><label class="form-check-label fw-bold" for="ne_is_free">無料イベント</label></div>' +
+'<div class="form-check ms-3"><input type="checkbox" class="form-check-input" id="ne_oubo_hidden"><label class="form-check-label fw-bold text-muted" for="ne_oubo_hidden">応募状況に非表示</label></div>' +
+'</div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント名<span class="text-danger">*</span></label>' +
 '<input type="text" class="form-control" id="ne_name" placeholder="コーチAレッスン 7月15日"></div>' +
 '<!-- オフライン専用 -->' +
@@ -849,6 +871,12 @@ function getDashboardHtml() {
 '<textarea class="form-control" id="ne_locker" rows="2" placeholder="受付でのお声がけは不要です。..."></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">施設URL</label>' +
 '<input type="url" class="form-control" id="ne_facility_url" placeholder="https://..."></div>' +
+'<!-- 大会専用 -->' +
+'<div id="ne_capacity_field" class="col-6" style="display:none">' +
+'<label class="form-label fw-bold">定員<span class="text-danger">*</span></label>' +
+'<input type="number" class="form-control" id="ne_capacity" placeholder="32" min="2">' +
+'<div class="form-text">先着順の最大参加人数（ペア=2名カウント）</div>' +
+'</div>' +
 '</div></div>' +
 '<!-- オンライン専用 -->' +
 '<div id="ne_online_fields" class="col-12" style="display:none">' +
@@ -861,7 +889,7 @@ function getDashboardHtml() {
 '<input type="date" class="form-control" id="ne_closing_online"></div>' +
 '</div></div>' +
 '<!-- 共通 -->' +
-'<div class="col-12"><label class="form-label fw-bold">コーチ名</label>' +
+'<div class="col-12" id="ne_coach_field"><label class="form-label fw-bold">コーチ名</label>' +
 '<input type="text" class="form-control" id="ne_coach" placeholder="山田 コーチ"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント内容</label>' +
 '<textarea class="form-control" id="ne_desc" rows="3" placeholder="イベントの説明・内容を入力"></textarea></div>' +
@@ -875,7 +903,11 @@ function getDashboardHtml() {
 '<div id="editEventModal" class="card p-3 mb-3" style="display:none;border:2px solid #0d6efd">' +
 '<h6 class="mb-3">✏️ イベント詳細を編集</h6>' +
 '<div class="row g-2">' +
-'<div class="col-12 d-flex justify-content-between align-items-center"><div class="fw-bold" id="ee_name"></div><div class="form-check"><input type="checkbox" class="form-check-input" id="ee_is_free"><label class="form-check-label fw-bold" for="ee_is_free">無料イベント</label></div></div>' +
+'<div class="col-12"><label class="form-label fw-bold">イベント名<span class="text-danger">*</span></label><input type="text" class="form-control fw-bold" id="ee_name"></div>' +
+'<div class="col-12 d-flex gap-3 justify-content-end">' +
+'<div class="form-check"><input type="checkbox" class="form-check-input" id="ee_is_free"><label class="form-check-label fw-bold" for="ee_is_free">無料イベント</label></div>' +
+'<div class="form-check"><input type="checkbox" class="form-check-input" id="ee_oubo_hidden"><label class="form-check-label fw-bold text-muted" for="ee_oubo_hidden">応募状況に非表示</label></div>' +
+'</div>' +
 '<div id="ee_offline_fields" class="col-12">' +
 '<div class="row g-2">' +
 '<div class="col-6"><label class="form-label fw-bold">応募開始日</label><input type="date" class="form-control" id="ee_opening"></div>' +
@@ -893,6 +925,11 @@ function getDashboardHtml() {
 '<div class="col-6"><label class="form-label fw-bold">参加確認期限（自動キャンセル日時）</label><input type="datetime-local" class="form-control" id="ee_deadline_at"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">更衣室について</label><textarea class="form-control" id="ee_locker" rows="2"></textarea></div>' +
 '<div class="col-12"><label class="form-label fw-bold">施設URL</label><input type="url" class="form-control" id="ee_facility_url"></div>' +
+'<div id="ee_capacity_field" class="col-6" style="display:none">' +
+'<label class="form-label fw-bold">定員</label>' +
+'<input type="number" class="form-control" id="ee_capacity" placeholder="32" min="2">' +
+'<div class="form-text">先着順の最大参加人数（ペア=2名カウント）</div>' +
+'</div>' +
 '</div></div>' +
 '<div id="ee_online_fields" class="col-12" style="display:none">' +
 '<div class="row g-2">' +
@@ -900,7 +937,7 @@ function getDashboardHtml() {
 '<div class="col-6"><label class="form-label fw-bold">応募開始日</label><input type="date" class="form-control" id="ee_opening_online"></div>' +
 '<div class="col-6"><label class="form-label fw-bold">募集終了日</label><input type="date" class="form-control" id="ee_closing_online"></div>' +
 '</div></div>' +
-'<div class="col-12"><label class="form-label fw-bold">コーチ名</label><input type="text" class="form-control" id="ee_coach"></div>' +
+'<div class="col-12" id="ee_coach_field"><label class="form-label fw-bold">コーチ名</label><input type="text" class="form-control" id="ee_coach"></div>' +
 '<div class="col-12"><label class="form-label fw-bold">イベント内容</label><textarea class="form-control" id="ee_desc" rows="3"></textarea></div>' +
 '</div>' +
 '<div class="d-flex gap-2 mt-3 align-items-center">' +
@@ -1131,9 +1168,13 @@ function getDashboardHtml() {
 '["ne_time_start","ne_time_end"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});' +
 '}' +
 'function onEventTypeChange(){' +
-'var isOnline=document.getElementById("ne_type").value==="オンライン";' +
+'var evType=document.getElementById("ne_type").value;' +
+'var isOnline=evType==="オンライン";' +
+'var isTournament=evType==="大会";' +
 'document.getElementById("ne_offline_fields").style.display=isOnline?"none":"";' +
 'document.getElementById("ne_online_fields").style.display=isOnline?"":"none";' +
+'var cf=document.getElementById("ne_capacity_field");if(cf)cf.style.display=isTournament?"":"none";' +
+'var ncf=document.getElementById("ne_coach_field");if(ncf)ncf.style.display=isTournament?"none":"";' +
 '}' +
 'function submitNewEvent(){' +
 'var evType=document.getElementById("ne_type").value;' +
@@ -1164,6 +1205,7 @@ function getDashboardHtml() {
 'closingAt=document.getElementById("ne_closing_at").value;' +
 'resultAnnouncement=document.getElementById("ne_result_announcement").value;' +
 'isFreeEvent=document.getElementById("ne_is_free").checked;' +
+'ouboStatusHidden=document.getElementById("ne_oubo_hidden").checked;' +
 'locker=document.getElementById("ne_locker").value.trim();' +
 'facilityUrl=document.getElementById("ne_facility_url").value.trim();' +
 '}' +
@@ -1177,17 +1219,23 @@ function getDashboardHtml() {
 '})' +
 '.withFailureHandler(function(e){res.textContent="❌ "+e.message;})' +
 '.createNewEvent({name:name,eventDate:date,closingDate:closing,openingDate:opening,eventTime:time,venue:venue,coachName:coach,description:desc,channelUrl:channelUrl,eventType:evType,' +
-'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,closingDateTimeAt:closingAt,resultAnnouncementDate:resultAnnouncement,isFreeEvent:isFreeEvent,lockerInfo:locker,facilityUrl:facilityUrl});' +
+'meetingTime:meeting,courtType:court,items:items,fee:fee,confirmDeadline:deadline,confirmDeadlineAt:deadlineAt,closingDateTimeAt:closingAt,resultAnnouncementDate:resultAnnouncement,isFreeEvent:isFreeEvent,lockerInfo:locker,facilityUrl:facilityUrl,' +
+'capacity:evType==="大会"?parseInt((document.getElementById("ne_capacity")||{}).value||"0")||0:0,' +
+'ouboStatusHidden:ouboStatusHidden});' +
 '}' +
 
 'function openEditEventModal(idx,e){' +
 'if(e)e.stopPropagation();' +
 'var ev=eventsData[idx];' +
 'document.getElementById("editEventModal").dataset.appSheetName=ev.appSheetName;' +
-'document.getElementById("ee_name").textContent=ev.name;' +
+'document.getElementById("ee_name").value=ev.name;' +
 'var isOnline=ev.eventType==="オンライン";' +
+'var isTournamentEv=ev.eventType==="大会";' +
 'document.getElementById("ee_offline_fields").style.display=isOnline?"none":"";' +
 'document.getElementById("ee_online_fields").style.display=isOnline?"":"none";' +
+'var eecf=document.getElementById("ee_capacity_field");if(eecf)eecf.style.display=isTournamentEv?"":"none";' +
+'var eecoacf=document.getElementById("ee_coach_field");if(eecoacf)eecoacf.style.display=isTournamentEv?"none":"";' +
+'var eecap=document.getElementById("ee_capacity");if(eecap)eecap.value=ev.capacity||"";' +
 'document.getElementById("ee_date").value=ev.eventDateISO||"";' +
 'document.getElementById("ee_closing").value=ev.closingDateISO||"";' +
 'document.getElementById("ee_opening").value=ev.openingDateISO||"";' +
@@ -1198,6 +1246,7 @@ function getDashboardHtml() {
 'document.getElementById("ee_fee").value=ev.fee||"";' +
 'document.getElementById("ee_items").value=ev.items||"";' +
 'document.getElementById("ee_is_free").checked=!!ev.isFreeEvent;' +
+'document.getElementById("ee_oubo_hidden").checked=!!ev.ouboStatusHidden;' +
 'document.getElementById("ee_closing_at").value=ev.closingDateTimeAtISO||"";' +
 'document.getElementById("ee_result_announcement").value=ev.resultAnnouncementDateISO||"";' +
 'document.getElementById("ee_deadline").value=ev.confirmDeadline||"";' +
@@ -1219,6 +1268,7 @@ function getDashboardHtml() {
 'var appSheetName=modal.dataset.appSheetName;' +
 'var isOnline=document.getElementById("ee_online_fields").style.display!=="none";' +
 'var payload={appSheetName:appSheetName,' +
+'name:document.getElementById("ee_name").value.trim(),' +
 'coachName:document.getElementById("ee_coach").value.trim(),' +
 'description:document.getElementById("ee_desc").value.trim()};' +
 'if(isOnline){' +
@@ -1242,6 +1292,8 @@ function getDashboardHtml() {
 'payload.confirmDeadlineAt=document.getElementById("ee_deadline_at").value;' +
 'payload.lockerInfo=document.getElementById("ee_locker").value.trim();' +
 'payload.facilityUrl=document.getElementById("ee_facility_url").value.trim();' +
+'var eecapEl=document.getElementById("ee_capacity");payload.capacity=eecapEl?parseInt(eecapEl.value)||0:0;' +
+'var eohEl=document.getElementById("ee_oubo_hidden");payload.ouboStatusHidden=!!(eohEl&&eohEl.checked);' +
 '}' +
 'var res=document.getElementById("ee_result");res.textContent="保存中...";' +
 'google.script.run' +

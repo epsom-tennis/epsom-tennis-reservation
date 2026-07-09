@@ -469,15 +469,25 @@ function buildProfileCardHtml(m) {
 
 function buildEventsHtml() {
   var typeParam = getLiffUrlParam('type');
-  var offline = eventsData.filter(function(ev) { var t = ev.eventType || 'オフライン'; return t !== 'オンライン'; });
-  var online  = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') === 'オンライン'; });
-  // 初回登録直後の応募フロー、またはtype指定なしURLの場合は全イベントを表示する
-  if (_postRegistrationMode || (typeParam !== 'online' && typeParam !== 'offline')) {
+  var offline    = eventsData.filter(function(ev) { var t = ev.eventType || 'オフライン'; return t !== 'オンライン' && t !== '大会'; });
+  var tournament = eventsData.filter(function(ev) { return ev.eventType === '大会'; });
+  var online     = eventsData.filter(function(ev) { return (ev.eventType || 'オフライン') === 'オンライン'; });
+  // 初回登録直後の応募フローは全イベントを表示する
+  if (_postRegistrationMode) {
     return buildEventGroupHtml('📍 オフラインイベント', offline) +
+           buildEventGroupHtml('🏆 大会', tournament) +
            buildEventGroupHtml('💻 オンラインイベント', online);
   }
+  if (typeParam === 'tournament') return buildEventGroupHtml('🏆 大会', tournament);
   if (typeParam === 'online') return buildEventGroupHtml('💻 オンラインイベント', online);
-  return buildEventGroupHtml('📍 オフラインイベント', offline);
+  if (typeParam === 'offline') {
+    return buildEventGroupHtml('📍 オフラインイベント', offline) +
+           buildEventGroupHtml('🏆 大会', tournament);
+  }
+  // type指定なしURLの場合は全イベントを表示する
+  return buildEventGroupHtml('📍 オフラインイベント', offline) +
+         buildEventGroupHtml('🏆 大会', tournament) +
+         buildEventGroupHtml('💻 オンラインイベント', online);
 }
 
 function buildEventGroupHtml(label, events) {
@@ -492,7 +502,10 @@ function buildEventGroupHtml(label, events) {
 }
 
 function buildSingleEventHtml(ev, i) {
-  var isOnline  = (ev.eventType || 'オフライン') === 'オンライン';
+  var isOnline    = (ev.eventType || 'オフライン') === 'オンライン';
+  var isTournament = ev.eventType === '大会';
+  var isFull = isTournament && ev.capacityStatus === 'full';
+  var isLow  = isTournament && ev.capacityStatus === 'low';
   var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
   var dateLine  = ev.eventDate ? '<span>📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '') + '</span>' : '';
   var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
@@ -506,7 +519,13 @@ function buildSingleEventHtml(ev, i) {
   var appliedBadge = ev.alreadyApplied
     ? ' <span style="background:#198754;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">応募済み</span>'
     : '';
-  var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')">';
+  var capacityBadge = isFull
+    ? ' <span style="background:#dc3545;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">満員</span>'
+    : isLow
+      ? ' <span style="background:#fd7e14;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">残り枠少</span>'
+      : '';
+  // 満員の場合はチェックボックスを無効化する
+  var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')"' + (isFull ? ' disabled' : '') + '>';
   var isPlayer = ev.eventType === '選手交流';
   // 「無料イベントだった」はev.isFreeEvent=trueの場合のみ選択肢に追加する
   var rsnOpts = (isPlayer ? RSN_OPTS_PLAYER : RSN_OPTS_BASE).slice();
@@ -515,23 +534,49 @@ function buildSingleEventHtml(ev, i) {
   var snsSubHtml = '<div id="sns_sub_' + i + '" style="display:none;margin-left:16px;margin-top:4px;background:#f8f9fa;border-radius:6px;padding:8px">' +
     '<div style="font-size:12px;color:#555;margin-bottom:4px">どのSNSで知りましたか？（複数選択可）</div>' +
     '<div class="clist">' + checkboxHtml('sns_' + i, SNS_PLATFORM_OPTS, []) + '</div></div>';
-  var perEvQ =
-    '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
-    '<div class="fg" style="margin-bottom:12px"><label class="fl">' + (isPlayer ? 'この選手について' : 'コーチのレッスンについて') + '<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, isPlayer ? PLAYER_COACH_OPTS : COACH_OPTS, '') + '</div></div>' +
-    '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>' +
-    '<div class="fg"><label class="fl">参加応募のきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('rsn_' + i, rsnOpts, []) + '</div></div>';
+  var perEvQ;
+  if (isTournament) {
+    // 大会専用の質問: コーチ・参加応募のきっかけは除外、参加形式（1人/ペア）+ペア相手名を追加
+    perEvQ =
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">参加形式<span class="req">*</span></label>' +
+        '<div class="rlist">' +
+          '<label class="opt"><input type="radio" name="participantForm_' + i + '" value="1人" onchange="onParticipantFormChange(' + i + ')"><span>1人で参加</span></label>' +
+          '<label class="opt"><input type="radio" name="participantForm_' + i + '" value="ペア" onchange="onParticipantFormChange(' + i + ')"><span>ペアで参加</span></label>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fg" id="pairPartnerSection_' + i + '" style="display:none;margin-bottom:12px">' +
+        '<label class="fl">ペアの相手のお名前<span class="req">*</span></label>' +
+        '<input type="text" id="pairPartnerName_' + i + '" placeholder="山田 花子">' +
+      '</div>' +
+      '<div class="fg"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>';
+  } else {
+    perEvQ =
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントに応募する参加者<span class="req">*</span></label><div id="ev_p_list_' + i + '" class="clist"></div></div>' +
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">' + (isPlayer ? 'この選手について' : 'コーチのレッスンについて') + '<span class="req">*</span></label><div class="rlist">' + radioHtml('coach_' + i, isPlayer ? PLAYER_COACH_OPTS : COACH_OPTS, '') + '</div></div>' +
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>' +
+      '<div class="fg"><label class="fl">参加応募のきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('rsn_' + i, rsnOpts, []) + '</div></div>';
+  }
   var deadlineLine = ev.closingDate ? '<div class="ev-deadline">募集締切：' + ev.closingDate + '</div>' : '<div class="ev-deadline">常時募集中</div>';
   return '<div class="ev-wrap">' +
-    '<label class="ev-opt">' +
+    '<label class="ev-opt"' + (isFull ? ' style="opacity:0.7;cursor:default"' : '') + '>' +
     evCheckbox +
     '<div>' +
-      '<div class="ev-name">' + h(ev.name) + appliedBadge + '</div>' +
+      '<div class="ev-name">' + h(ev.name) + appliedBadge + capacityBadge + '</div>' +
       '<div class="ev-meta">' + (coachLine || '') + dateLine + (venueLine || '') + (channelLine || '') + '</div>' +
       descLine +
       deadlineLine +
     '</div></label>' +
     '<div id="ev_detail_' + i + '" class="ev-detail" style="display:none">' + perEvQ + '</div>' +
   '</div>';
+}
+
+// ========== 大会：参加形式変更（ペア相手名フィールドの表示切替） ==========
+
+function onParticipantFormChange(idx) {
+  var selected = rv('participantForm_' + idx);
+  var sec = document.getElementById('pairPartnerSection_' + idx);
+  if (sec) sec.style.display = (selected === 'ペア') ? '' : 'none';
 }
 
 // ========== アコーディオン切替 ==========
@@ -783,9 +828,10 @@ function updateConsentSections() {
     return ev && (ev.eventType || 'オフライン') === 'オンライン';
   });
   // オフラインの撮影同意はisFreeEventで無料/有料を切り替える（複数選択時は最初のオフラインイベントで判定）
+  // 大会は撮影可否の同意をスキップする（参加形式・ペア相手名のみ）
   var offlineEvIdx = evIdxs.find(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン'; });
-  var offlineMediaHtml = (offlineEvIdx != null && eventsData[parseInt(offlineEvIdx)].isFreeEvent) ? MEDIA_HTML_FREE : MEDIA_HTML_PAID;
-  var hasOfflinePaid = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && !ev.isFreeEvent; });
+  var offlineMediaHtml = (offlineEvIdx != null && eventsData[parseInt(offlineEvIdx)].isFreeEvent && eventsData[parseInt(offlineEvIdx)].eventType !== '大会') ? MEDIA_HTML_FREE : MEDIA_HTML_PAID;
+  var hasOfflinePaid = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && ev.eventType !== '大会' && !ev.isFreeEvent; });
   var html = '';
   if (hasOffline) html += buildConsentCard('offline', 'オフラインイベント 利用規約・プライバシーポリシー', TOS_OFFLINE_HTML, '📸 撮影・インタビューへのご協力について', offlineMediaHtml, 'mediaCons', '撮影・インタビュー（顔出しあり）への協力に同意します');
   if (hasOfflinePaid) html += buildShootingConsentCard();
@@ -1141,16 +1187,29 @@ function doSubmit() {
 
   evIdxs.forEach(function(i) {
     var idx = parseInt(i);
-    var evName = eventsData[idx] ? eventsData[idx].name : ('イベント' + (idx + 1));
+    var ev = eventsData[idx];
+    var evName = ev ? ev.name : ('イベント' + (idx + 1));
+    var evIsTournament = ev && ev.eventType === '大会';
     if (chk('ev_p_' + idx).length === 0) errs.push('「' + evName + '」応募する参加者を選択してください。');
-    if (!rv('coach_' + idx)) errs.push('「' + evName + '」コーチのレッスンについて回答してください。');
+    if (!evIsTournament) {
+      // 大会はコーチ質問・参加応募のきっかけは不要
+      if (!rv('coach_' + idx)) errs.push('「' + evName + '」コーチのレッスンについて回答してください。');
+      if (chk('rsn_' + idx).length === 0) errs.push('「' + evName + '」参加応募のきっかけを選択してください。');
+    }
     if (chk('src_' + idx).length === 0) errs.push('「' + evName + '」イベントを知ったきっかけを選択してください。');
-    if (chk('rsn_' + idx).length === 0) errs.push('「' + evName + '」参加応募のきっかけを選択してください。');
+    if (evIsTournament) {
+      if (!rv('participantForm_' + idx)) errs.push('「' + evName + '」参加形式を選択してください。');
+      if (rv('participantForm_' + idx) === 'ペア') {
+        var pairName = document.getElementById('pairPartnerName_' + idx);
+        if (!pairName || !pairName.value.trim()) errs.push('「' + evName + '」ペアの相手のお名前を入力してください。');
+      }
+    }
   });
 
   var hasOfflineEv = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン'; });
   var hasOnlineEv  = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') === 'オンライン'; });
-  var hasOfflinePaidEv = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && !ev.isFreeEvent; });
+  // 大会は撮影可否の同意が不要（先着順確定のため）
+  var hasOfflinePaidEv = evIdxs.some(function(i) { var ev = eventsData[parseInt(i)]; return ev && (ev.eventType || 'オフライン') !== 'オンライン' && ev.eventType !== '大会' && !ev.isFreeEvent; });
   if (hasOfflineEv) {
     var oTos = document.getElementById('tos_offline'); var oCons = document.getElementById('mediaCons');
     if (!oTos || !oTos.checked)  errs.push('オフラインイベントの利用規約への同意が必要です。');
@@ -1185,8 +1244,11 @@ function doSubmit() {
 
   var selEvs = evIdxs.map(function(i) {
     var idx = parseInt(i);
-    return Object.assign({}, eventsData[idx], {
-      coachKnowledge:  rv('coach_' + idx),
+    var evData = eventsData[idx];
+    var evIsTournament = evData && evData.eventType === '大会';
+    var pairNameEl = document.getElementById('pairPartnerName_' + idx);
+    return Object.assign({}, evData, {
+      coachKnowledge:  evIsTournament ? '' : rv('coach_' + idx),
       eventSource:     (function() {
         var srcs = chk('src_' + idx);
         var platforms = chk('sns_' + idx);
@@ -1199,8 +1261,10 @@ function doSubmit() {
           return s;
         });
       })(),
-      applyReason:     chk('rsn_' + idx),
-      participantNums: chk('ev_p_' + idx).map(function(v){ return parseInt(v); }),
+      applyReason:      evIsTournament ? [] : chk('rsn_' + idx),
+      participantNums:  chk('ev_p_' + idx).map(function(v){ return parseInt(v); }),
+      participantForm:  evIsTournament ? rv('participantForm_' + idx) : '',
+      pairPartnerName:  (evIsTournament && pairNameEl) ? pairNameEl.value.trim() : '',
     });
   });
 
@@ -1241,9 +1305,13 @@ function doSubmit() {
       if (broadcastName) lines.push('動画内でお呼びするお名前：' + broadcastName + '様');
       if (applied.length > 0) {
         lines.push('応募イベント:\n' + applied.map(function(n){ return '・' + n; }).join('\n'));
+        // 大会のみの応募は「参加確定」、通常は「当落発表」
+        var onlyTournament = evIdxs.every(function(i) { var ev = eventsData[parseInt(i)]; return ev && ev.eventType === '大会'; });
         lines.push(consultType === 'video'
           ? 'このLINEに動画を送ってください 🎥\nコーチが確認します。'
-          : '当落結果はLINEでお知らせします。\nしばらくお待ちください。');
+          : onlyTournament
+            ? 'LINEに参加確定のお知らせを送りました。'
+            : '当落結果はLINEでお知らせします。\nしばらくお待ちください。');
       } else {
         lines.push('プロフィール情報を更新しました。\nありがとうございます！');
       }

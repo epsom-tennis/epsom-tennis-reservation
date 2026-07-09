@@ -109,6 +109,8 @@ function submitLiffApplication(data) {
     const appliedOfflineNames = [];
     const appliedOfflineResultDates = []; // appliedOfflineNamesと並行：当落発表予定日(Date or null)
     const appliedOfflineEventDates  = []; // appliedOfflineNamesと並行：開催日(Date or null)
+    const appliedTournamentNames      = []; // 大会：先着順で確定したイベント名
+    const appliedTournamentEventDates = []; // 大会：開催日(Date or null)
     const appliedParticipantNames = []; // 新規応募した参加者のフルネーム
 
     // 主参加者 + 追加参加者をまとめて処理
@@ -167,6 +169,11 @@ function submitLiffApplication(data) {
       // 各選択イベントの当落シートに応募行を追加
       let pHasNewApply = false;
       for (const ev of (data.selectedEvents || [])) {
+        const isTournament = (ev.eventType || 'オフライン') === '大会';
+
+        // 大会は追加参加者（_p2以降）をスキップ。ペアは1行で2名分として扱う
+        if (isTournament && p._participantNum > 1) continue;
+
         // participantNums が指定されている場合はその参加者のみ応募
         if (ev.participantNums && ev.participantNums.length > 0 && !ev.participantNums.includes(p._participantNum)) {
           continue;
@@ -180,9 +187,28 @@ function submitLiffApplication(data) {
           if (String(resultData[i][1]) === pUserId) { already = true; break; }
         }
         if (already && !isOnline) continue; // オンラインは常時募集のため重複応募を許可
+
+        // 大会：先着順チェック（定員はサーバー側のデータを使い、クライアント偽装を防ぐ）
+        if (isTournament) {
+          const serverEvForCap = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
+          const capacity = (serverEvForCap && serverEvForCap.capacity) || 0;
+          if (capacity > 0) {
+            let currentCount = 0;
+            for (let j = 1; j < resultData.length; j++) {
+              const form = String(resultData[j][10] || ''); // K列：参加形式
+              currentCount += (form === 'ペア') ? 2 : 1;
+            }
+            const needed = (ev.participantForm === 'ペア') ? 2 : 1;
+            if (currentCount + needed > capacity) {
+              return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
+            }
+          }
+        }
+
         const evCoach  = ev.coachKnowledge || data.coachKnowledge || '';
         const evSrcStr = (ev.eventSource   || data.eventSource   || []).join('・');
-        const evRsnStr = (ev.applyReason   || data.applyReason   || []).join('・');
+        // 大会は「参加応募のきっかけ」質問なし
+        const evRsnStr = isTournament ? '' : (ev.applyReason || data.applyReason || []).join('・');
         const isVideo = isOnline && (data.onlineConsultType || '') === 'video';
         const onlineConsultPhoneNorm = normalizePhone_(data.onlineConsultPhone || '');
         // J列「参加確認」はオンライン・オフライン共通の基本列（応募時点では空欄、当落確定後に運用される）
@@ -197,8 +223,18 @@ function submitLiffApplication(data) {
             isVideo ? '待ち' : '',           // P: 動画状態
             '',                              // Q: 動画URL
             '未確認',                        // R: 対応状況（スタッフ管理用・未確認/確認中/回答済）
+          ] : isTournament ? [
+            ev.participantForm  || '',       // K: 参加形式（1人/ペア）
+            ev.pairPartnerName  || '',       // L: ペア相手名
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
+        // 大会：先着順のため応募時点で当選確定・通知済みとして記録する
+        if (isTournament) {
+          const newRow = resultSheet.getLastRow();
+          resultSheet.getRange(newRow, 3).setValue('当選');   // C: 結果
+          resultSheet.getRange(newRow, 4).setValue('済');     // D: 送信済み
+          resultSheet.getRange(newRow, 5).setValue(new Date()); // E: 送信日時
+        }
         if (isOnline && onlineConsultPhoneNorm) {
           // appendRowは数値扱いで書き込まれるため、電話番号列（O列=15）だけ書式をテキスト固定して再書き込みする
           resultSheet.getRange(resultSheet.getLastRow(), 15).setNumberFormat('@').setValue(onlineConsultPhoneNorm);
@@ -207,8 +243,13 @@ function submitLiffApplication(data) {
         pHasNewApply = true;
         if (!appliedNames.includes(ev.name)) {
           appliedNames.push(ev.name);
-          if (isOnline) appliedOnlineNames.push(ev.name);
-          else {
+          if (isOnline) {
+            appliedOnlineNames.push(ev.name);
+          } else if (isTournament) {
+            const serverEvT = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
+            appliedTournamentNames.push(ev.name);
+            appliedTournamentEventDates.push(serverEvT ? (serverEvT.eventDate || null) : null);
+          } else {
             // 開催日・当落発表日はクライアントデータには含まれないためサーバー側から取得する
             const serverEv = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
             appliedOfflineNames.push(ev.name);
@@ -235,6 +276,17 @@ function submitLiffApplication(data) {
         ? appliedParticipantNames.map(n => n + ' 様').join('、')
         : '';
       const msgParts = [renderTemplate_(getMsgTemplate_('header_apply'), { names: namesPart })];
+
+      // 大会：先着順で参加確定
+      if (appliedTournamentNames.length > 0) {
+        msgParts.push(renderTemplate_(getMsgTemplate_('tournament_apply'), {
+          events: appliedTournamentNames.map(function(name, idx) {
+            const d = appliedTournamentEventDates[idx];
+            const dateLine = d instanceof Date ? Utilities.formatDate(d, 'Asia/Tokyo', 'M月d日') + '開催\n' : '';
+            return dateLine + '・' + name;
+          }).join('\n\n'),
+        }));
+      }
 
       // オフラインイベント：当落通知あり
       if (appliedOfflineNames.length > 0) {

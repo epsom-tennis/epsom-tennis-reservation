@@ -98,9 +98,10 @@ function createNewEvent(data) {
     const {
       name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent,
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
     } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
+    const isTournament = (eventType || 'オフライン') === '大会';
     if (!name) return { success: false, error: 'イベント名は必須です。' };
     if (!isOnline && (!eventDate || !closingDate)) {
       return { success: false, error: 'オフラインイベントには開催日・募集終了日が必須です。' };
@@ -161,20 +162,24 @@ function createNewEvent(data) {
     if (!resultSheet) {
       resultSheet = ss.insertSheet(resultSheetName);
       const baseHeaders = ['お名前', 'User ID', '結果', '送信済み', '送信日時', 'コーチについて', '流入経路', '応募きっかけ', '応募日時', '参加確認'];
-      // K列以降: オンラインは配信情報、オフラインは撮影可否
-      const extraHeaders = (eventType || 'オフライン') === 'オンライン'
+      // K列以降: オンラインは配信情報、大会は参加形式/ペア相手名、オフラインは撮影可否
+      const extraHeaders = isOnline
         ? ['配信名（ひらがな）', 'お悩み内容', '相談方法', '電話相談希望', '電話番号', '動画状態', '動画URL', '対応状況']
-        : ['撮影可否'];
+        : isTournament
+          ? ['参加形式', 'ペア相手名']
+          : ['撮影可否'];
       resultSheet.appendRow(baseHeaders.concat(extraHeaders));
       resultSheet.setFrozenRows(1);
     }
 
-    // 設定シートに行を追加（G〜N列に詳細情報、O〜U列に当落メッセージ差し込み用の項目）
+    // 設定シートに行を追加（G〜N列に詳細情報、O〜U列に当落メッセージ差し込み用の項目、Z列に定員）
     configSheet.appendRow([
       name, evDateObj || '', closingDateObj || '', appSheetName, '', '',
       eventTime || '', venue || '', coachName || '', description || '', openingDateObj || '', eventType || 'オフライン', channelUrl || '', '',
       meetingTime || '', courtType || '', items || '', fee || '', lockerInfo || '', facilityUrl || '', confirmDeadline || '', confirmDeadlineAtObj || '',
       closingDateTimeAtObj || '', resultAnnouncementDateObj || '', isFreeEvent === true || isFreeEvent === 'true',
+      parseInt(capacity) || '',                         // Z列：定員（大会イベント専用）
+      ouboStatusHidden === true || ouboStatusHidden === 'true', // AA列：応募状況非表示フラグ
     ]);
 
     return {
@@ -328,9 +333,9 @@ function resetAllData() {
 // appSheetNameをキーに対象行を特定し、A〜D列（イベント名・日付・シート名）以外の詳細項目を上書きする
 function updateEventDetails(data) {
   try {
-    const { appSheetName, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
+    const { appSheetName, name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent } = data;
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -343,6 +348,8 @@ function updateEventDetails(data) {
       if (String(configData[i][3]).trim() === appSheetName) { rowIdx = i + 1; break; }
     }
     if (rowIdx === -1) return { success: false, error: 'イベントが見つかりません。' };
+
+    if (name && String(name).trim()) configSheet.getRange(rowIdx, 1).setValue(String(name).trim());
 
     const toDateOrBlank = (v) => {
       if (!v) return '';
@@ -369,6 +376,8 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 23).setValue(toDateOrBlank(closingDateTimeAt));
     configSheet.getRange(rowIdx, 24).setValue(toDateOrBlank(resultAnnouncementDate));
     configSheet.getRange(rowIdx, 25).setValue(isFreeEvent === true || isFreeEvent === 'true');
+    configSheet.getRange(rowIdx, 26).setValue(parseInt(capacity) || '');  // Z列：定員（大会イベント専用）
+    configSheet.getRange(rowIdx, 27).setValue(ouboStatusHidden === true || ouboStatusHidden === 'true'); // AA列：応募状況非表示フラグ
 
     return { success: true };
   } catch (err) {
