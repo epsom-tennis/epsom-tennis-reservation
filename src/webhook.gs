@@ -205,6 +205,8 @@ function handleOuboStatus(event) {
       const remaining = ev.capacity - currentCount;
       if (remaining <= 0) {
         status = '満員（応募終了）';
+      } else if (remaining === 1) {
+        status = '残り1名（1人のみ応募可・ペアでの応募は終了しました）';
       } else if (remaining / ev.capacity <= 0.20) {
         // 残り枠少の場合は枠数は表示せず警告のみ
         if (ev.closingDateTimeAt) {

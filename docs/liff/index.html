@@ -504,8 +504,9 @@ function buildEventGroupHtml(label, events) {
 function buildSingleEventHtml(ev, i) {
   var isOnline    = (ev.eventType || 'オフライン') === 'オンライン';
   var isTournament = ev.eventType === '大会';
-  var isFull = isTournament && ev.capacityStatus === 'full';
-  var isLow  = isTournament && ev.capacityStatus === 'low';
+  var isFull       = isTournament && ev.capacityStatus === 'full';
+  var isPairClosed = isTournament && ev.capacityStatus === 'pair_closed';
+  var isLow        = isTournament && ev.capacityStatus === 'low';
   var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
   var dateLine  = ev.eventDate ? '<span>📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '') + '</span>' : '';
   var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
@@ -521,9 +522,11 @@ function buildSingleEventHtml(ev, i) {
     : '';
   var capacityBadge = isFull
     ? ' <span style="background:#dc3545;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">満員</span>'
-    : isLow
-      ? ' <span style="background:#fd7e14;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">残り枠少</span>'
-      : '';
+    : isPairClosed
+      ? ' <span style="background:#6f42c1;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">ペア応募終了</span>'
+      : isLow
+        ? ' <span style="background:#fd7e14;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;vertical-align:middle">残り枠少</span>'
+        : '';
   // 満員の場合はチェックボックスを無効化する
   var evCheckbox = '<input type="checkbox" name="ev" value="' + i + '" onchange="onEventToggle(' + i + ')"' + (isFull ? ' disabled' : '') + '>';
   var isPlayer = ev.eventType === '選手交流';
@@ -542,7 +545,7 @@ function buildSingleEventHtml(ev, i) {
       '<div class="fg" style="margin-bottom:12px"><label class="fl">参加形式<span class="req">*</span></label>' +
         '<div class="rlist">' +
           '<label class="opt"><input type="radio" name="participantForm_' + i + '" value="1人" onchange="onParticipantFormChange(' + i + ')"><span>1人で参加</span></label>' +
-          '<label class="opt"><input type="radio" name="participantForm_' + i + '" value="ペア" onchange="onParticipantFormChange(' + i + ')"><span>ペアで参加</span></label>' +
+          '<label class="opt"' + (isPairClosed ? ' style="opacity:0.5"' : '') + '><input type="radio" name="participantForm_' + i + '" value="ペア"' + (isPairClosed ? ' disabled' : '') + ' onchange="onParticipantFormChange(' + i + ')"><span>ペアで参加' + (isPairClosed ? '（残り1名のため終了）' : '') + '</span></label>' +
         '</div>' +
       '</div>' +
       '<div class="fg" id="pairPartnerSection_' + i + '" style="display:none;margin-bottom:12px">' +

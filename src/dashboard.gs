@@ -127,6 +127,7 @@ function getLiffEventsJson(userId) {
         const current = countTournamentParticipants_(ev.resultSheetName);
         const remaining = ev.capacity - current;
         if (remaining <= 0) capacityStatus = 'full';
+        else if (remaining === 1) capacityStatus = 'pair_closed';
         else if (remaining / ev.capacity <= 0.20) capacityStatus = 'low';
         else capacityStatus = 'normal';
       }
@@ -1626,6 +1627,7 @@ function getDashboardHtml() {
 '{label:"💻 オンライン応募",desc:"オンラインイベントのみ表示されます。",url:base+"?type=online"},' +
 '{label:"🎥 動画相談",desc:"オンラインのみ・動画相談を自動選択。",url:base+"?type=online&consult=video"},' +
 '{label:"📝 文章相談",desc:"オンラインのみ・文章相談を自動選択。",url:base+"?type=online&consult=text"},' +
+'{label:"🏆 大会応募",desc:"大会イベントのみ表示されます。",url:base+"?type=tournament"},' +
 '];' +
 'var html=links.map(function(l){' +
 'return "<div class=\'mb-3\'><div class=\'fw-bold mb-1\'>"+l.label+"</div><div class=\'text-muted small mb-1\'>"+l.desc+"</div><div class=\'d-flex gap-2\'><input type=\'text\' class=\'form-control form-control-sm\' value=\'"+l.url+"\' readonly onclick=\'this.select()\'><button class=\'btn btn-sm btn-outline-primary flex-shrink-0\' data-url=\'"+l.url+"\' onclick=\'cpLink(this)\'>コピー</button></div></div>";' +
