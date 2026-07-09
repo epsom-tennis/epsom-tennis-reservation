@@ -128,7 +128,7 @@ function getLiffEventsJson(userId) {
         const remaining = ev.capacity - current;
         if (remaining <= 0) capacityStatus = 'full';
         else if (remaining === 1) capacityStatus = 'pair_closed';
-        else if (remaining / ev.capacity <= 0.20) capacityStatus = 'low';
+        else if (remaining / ev.capacity <= 0.50) capacityStatus = 'low';
         else capacityStatus = 'normal';
       }
       return {
