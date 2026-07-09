@@ -552,9 +552,8 @@ function buildSingleEventHtml(ev, i) {
         '<label class="fl">ペアの相手のお名前<span class="req">*</span></label>' +
         '<input type="text" id="pairPartnerName_' + i + '" placeholder="山田 花子">' +
       '</div>' +
-      '<div class="fg" style="margin-bottom:12px"><label class="fl">限定コード・備考<span class="sec-note">（任意）</span></label>' +
-      '<input type="text" id="freeText_' + i + '" placeholder="例：サークル枠">' +
-      '<div class="sub-note">スタッフから指定されたコードや枠名がある場合に入力してください。</div></div>' +
+      '<div class="fg" style="margin-bottom:12px"><label class="fl">備考<span class="sec-note">（任意）</span></label>' +
+      '<input type="text" id="freeText_' + i + '" placeholder=""></div>' +
       '<div class="fg"><label class="fl">このイベントを知ったきっかけ<span class="req">*</span><span class="sec-note">複数選択可</span></label><div class="clist">' + checkboxHtml('src_' + i, SRC_OPTS, [], 'onSrcChange(' + i + ')') + '</div>' + snsSubHtml + '</div>';
   } else {
     perEvQ =
