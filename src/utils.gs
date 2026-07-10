@@ -24,13 +24,13 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
-// 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを、コードごとに上限人数を決めて登録できる
+// 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを、コードごとに上限件数を決めて登録できる
 function ensureReferralCodesSheet_() {
   const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
   let sheet = ss.getSheetByName(SHEET.REFERRAL_CODES);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET.REFERRAL_CODES);
-    sheet.appendRow(['大会名', 'コード', '紹介者名', '上限人数（空欄=無制限）']);
+    sheet.appendRow(['大会名', 'コード', '紹介者名', '上限件数（1人でもペアでも1件・空欄=無制限）']);
     sheet.setFrozenRows(1);
   }
   return sheet;
@@ -64,7 +64,8 @@ function getReferralCodesForEvent_(eventName) {
   return codes;
 }
 
-// 大会の当落シートで、指定した紹介コードを使って応募した人数を数える（ペア=2名カウント）
+// 大会の当落シートで、指定した紹介コードを使って応募された件数を数える
+// 定員（人数ベース、ペア=2名カウント）とは違い、紹介コードの上限は「1人でもペアでも1応募＝1件」として数える
 function countReferralCodeUsage_(resultSheetName, code) {
   const sheet = getSheet(resultSheetName);
   if (!sheet || sheet.getLastRow() <= 1) return 0;
@@ -72,8 +73,7 @@ function countReferralCodeUsage_(resultSheetName, code) {
   let count = 0;
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][13] || '') === code) { // N列：紹介コード
-      const form = String(data[i][10] || ''); // K列：参加形式
-      count += (form === 'ペア') ? 2 : 1;
+      count += 1;
     }
   }
   return count;
@@ -138,7 +138,7 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 28).getValue()) {
     sheet.getRange(1, 28).setValue('限定公開');
   }
-  // AC・AD列：（未使用）紹介コード・上限人数は「紹介コード」シートでコードごとに登録できるようにしたため、これらの列は使用しない
+  // AC・AD列：（未使用）紹介コード・上限件数は「紹介コード」シートでコードごとに登録できるようにしたため、これらの列は使用しない
   // AE列：先着受付終了日時（大会専用。これ以降の応募は自動当選にせず抽選待ちとして保留し、人数の上限も設けない）
   if (!sheet.getRange(1, 31).getValue()) {
     sheet.getRange(1, 31).setValue('先着受付終了日時');

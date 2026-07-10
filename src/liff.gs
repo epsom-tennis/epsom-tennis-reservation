@@ -190,7 +190,7 @@ function submitLiffApplication(data) {
 
         // 限定公開イベント：一覧には出さなくても直接応募される可能性があるため、サーバー側でも紹介コードの登録有無を確認する
         const serverEvForRestriction = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
-        // 紹介コードシートに登録されたコードと一致するかどうか（限定公開の認可・紹介枠予約人数の判定・備考への印付けで使う）
+        // 紹介コードシートに登録されたコードと一致するかどうか（限定公開の認可・紹介枠上限件数の判定・備考への印付けで使う）
         const referralMatch = data.accessCode ? findReferralCode_(ev.name, data.accessCode) : null;
         if (serverEvForRestriction && serverEvForRestriction.isRestricted && !referralMatch) {
           return { success: false, error: `「${ev.name}」は限定公開のイベントです。専用リンクからアクセスしてください。` };
@@ -213,14 +213,14 @@ function submitLiffApplication(data) {
             }
             const needed = (ev.participantForm === 'ペア') ? 2 : 1;
             if (referralMatch && referralMatch.maxCount > 0) {
-              // 上限人数付きの紹介コード：そのコード専用の使用人数だけでチェックする
+              // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」でカウントする
               const codeUsed = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
-              if (codeUsed + needed > referralMatch.maxCount) {
+              if (codeUsed + 1 > referralMatch.maxCount) {
                 return { success: false, error: `「${ev.name}」のこちらのご紹介枠は上限に達しているため応募できません。` };
               }
             } else if (!referralMatch) {
-              // 一般の応募：全紹介コードの上限人数合計を除いた枠までしか使えない
-              const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce(function(sum, c) { return sum + c.maxCount; }, 0);
+              // 一般の応募：全紹介コードの上限件数合計 × 2（ペアなら1件で2名分になり得るため）を除いた枠までしか使えない
+              const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce(function(sum, c) { return sum + c.maxCount * 2; }, 0);
               if (currentCount + needed > capacity - totalReferralReserved) {
                 return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
               }
@@ -255,7 +255,7 @@ function submitLiffApplication(data) {
             ev.pairPartnerName  || '',       // L: ペア相手名
             // 紹介枠経由の応募には、スタッフが一覧で分かるよう備考の先頭に紹介者名を印として付ける
             (referralMatch ? `【紹介枠:${referralMatch.referrerName || '不明'}】` : '') + (ev.freeText || ''), // M: 備考
-            referralMatch ? referralMatch.code : '',           // N: 紹介コード（コードごとの上限人数集計に使う）
+            referralMatch ? referralMatch.code : '',           // N: 紹介コード（コードごとの上限件数集計に使う）
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
         if (isTournament) ensureTournamentReferralColumn_(resultSheet); // 旧イベントにN列ヘッダーが無い場合に補充する

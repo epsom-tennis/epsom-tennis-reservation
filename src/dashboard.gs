@@ -130,26 +130,23 @@ function getLiffEventsJson(userId, accessCode) {
       let capacityStatus = '';
       if (isTournament && ev.capacity > 0 && !isLotteryPhase) {
         const referralMatch = accessCode ? findReferralCode_(ev.name, accessCode) : null;
-        let effectiveCapacity, current;
         if (referralMatch && referralMatch.maxCount > 0) {
-          // 上限人数付きの紹介コードを持つ人には、そのコード専用の残り枠を見せる
-          effectiveCapacity = referralMatch.maxCount;
-          current = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
-        } else if (referralMatch) {
-          // 上限なしの紹介コードを持つ人には、大会全体の残り枠を見せる
-          effectiveCapacity = ev.capacity;
-          current = countTournamentParticipants_(ev.resultSheetName);
+          // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」の残り件数で判定する（ペア枠終了の概念は無い）
+          const remaining = referralMatch.maxCount - countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
+          if (remaining <= 0) capacityStatus = 'full';
+          else if (remaining / referralMatch.maxCount <= 0.50) capacityStatus = 'low';
+          else capacityStatus = 'normal';
         } else {
-          // 一般の人には、全紹介コードの上限人数合計を除いた枠を見せる
-          const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce((sum, c) => sum + c.maxCount, 0);
-          effectiveCapacity = ev.capacity - totalReferralReserved;
-          current = countTournamentParticipants_(ev.resultSheetName);
+          // 上限なしの紹介コードを持つ人には大会全体の残り枠を、一般の人には紹介コードの上限件数合計×2（全件ペアの場合）を除いた枠を見せる
+          const totalReferralReserved = referralMatch ? 0 : getReferralCodesForEvent_(ev.name).reduce((sum, c) => sum + c.maxCount * 2, 0);
+          const effectiveCapacity = ev.capacity - totalReferralReserved;
+          const current = countTournamentParticipants_(ev.resultSheetName);
+          const remaining = effectiveCapacity - current;
+          if (remaining <= 0) capacityStatus = 'full';
+          else if (remaining === 1) capacityStatus = 'pair_closed';
+          else if (remaining / effectiveCapacity <= 0.50) capacityStatus = 'low';
+          else capacityStatus = 'normal';
         }
-        const remaining = effectiveCapacity - current;
-        if (remaining <= 0) capacityStatus = 'full';
-        else if (remaining === 1) capacityStatus = 'pair_closed';
-        else if (remaining / effectiveCapacity <= 0.50) capacityStatus = 'low';
-        else capacityStatus = 'normal';
       }
       return {
         name:            ev.name,
@@ -1009,7 +1006,7 @@ function getDashboardHtml() {
 '<div class="d-flex gap-2 flex-wrap align-items-end">' +
 '<div><label class="form-label small mb-0">コード</label><input type="text" class="form-control form-control-sm" id="ee_referral_code_input" style="width:130px" placeholder="SHOKAI001"></div>' +
 '<div><label class="form-label small mb-0">紹介者名</label><input type="text" class="form-control form-control-sm" id="ee_referral_name_input" style="width:130px" placeholder="山田花子"></div>' +
-'<div><label class="form-label small mb-0">上限人数<span class="text-muted">（空欄=無制限）</span></label><input type="number" class="form-control form-control-sm" id="ee_referral_max_input" style="width:90px" min="1"></div>' +
+'<div><label class="form-label small mb-0">上限件数<span class="text-muted">（1人でもペアでも1件。空欄=無制限）</span></label><input type="number" class="form-control form-control-sm" id="ee_referral_max_input" style="width:90px" min="1"></div>' +
 '<button class="btn btn-outline-primary btn-sm" onclick="addReferralCodeFromUI()">＋ 追加</button>' +
 '</div>' +
 '<div class="form-text">紹介コードで応募した人の備考欄に、ここで設定した紹介者名が自動で記録されます。</div>' +
@@ -1358,7 +1355,7 @@ function getDashboardHtml() {
 'if(!res.success){box.textContent="読み込み失敗: "+res.error;return;}' +
 'if(res.codes.length===0){box.innerHTML="<div class=\\"text-muted small\\">まだ紹介コードは登録されていません。</div>";return;}' +
 'box.innerHTML=res.codes.map(function(c){' +
-'var limitText=c.maxCount>0?(c.usedCount+"/"+c.maxCount+"名"):(c.usedCount+"名（上限なし）");' +
+'var limitText=c.maxCount>0?(c.usedCount+"/"+c.maxCount+"件"):(c.usedCount+"件（上限なし）");' +
 'return "<div class=\\"d-flex justify-content-between align-items-center border rounded p-2 mb-1\\">"+' +
 '"<div><b>"+escHtml(c.code)+"</b>"+(c.referrerName?"（"+escHtml(c.referrerName)+"）":"")+" — "+limitText+"</div>"+' +
 '"<button class=\\"btn btn-sm btn-outline-danger\\" onclick=\\"deleteReferralCodeFromUI(\'"+escHtml(c.code)+"\')\\">削除</button>"+' +
