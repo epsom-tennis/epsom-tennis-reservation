@@ -96,14 +96,15 @@ function liffApiResponse(data) {
 
 // LIFF向けイベント一覧を返す（応募開始日・締切日でフィルタ済み）
 // userIdが渡された場合はalreadyAppliedフラグも付与する
-// accessCodeが渡された場合、限定公開イベントのうちコードが一致するものだけ通常一覧に含める
+// accessCodeが渡された場合、そのコードが登録されているイベント1件だけに絞り込む（コードに一致するイベントが無ければ通常の一覧を返す）
 function getLiffEventsJson(userId, accessCode) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const filtered = getAllEvents()
-      .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today))
-      .filter(ev => !ev.isRestricted || (accessCode && findReferralCode_(ev.name, accessCode)));
+    const dateFiltered = getAllEvents()
+      .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today));
+    const codeMatched = accessCode ? dateFiltered.filter(ev => findReferralCode_(ev.name, accessCode)) : [];
+    const filtered = codeMatched.length > 0 ? codeMatched : dateFiltered.filter(ev => !ev.isRestricted);
 
     // 応募済みシート名のセットを構築
     const appliedSheets = new Set();
