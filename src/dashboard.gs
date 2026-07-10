@@ -180,8 +180,10 @@ function getReferralCodesForEvent(eventName) {
     const codes = getReferralCodesForEvent_(eventName);
     const ev = getAllEvents().find(e => e.name === eventName);
     const usedCounts = codes.map(c => ev ? countReferralCodeUsage_(ev.resultSheetName, c.code) : 0);
+    const liffId = getProp('LIFF_ID') || '';
     return {
       success: true,
+      liffId,
       codes: codes.map((c, i) => ({ code: c.code, referrerName: c.referrerName, maxCount: c.maxCount, usedCount: usedCounts[i] })),
     };
   } catch (err) {
@@ -1356,14 +1358,24 @@ function getDashboardHtml() {
 'if(res.codes.length===0){box.innerHTML="<div class=\\"text-muted small\\">まだ紹介コードは登録されていません。</div>";return;}' +
 'box.innerHTML=res.codes.map(function(c){' +
 'var limitText=c.maxCount>0?(c.usedCount+"/"+c.maxCount+"件"):(c.usedCount+"件（上限なし）");' +
-'return "<div class=\\"d-flex justify-content-between align-items-center border rounded p-2 mb-1\\">"+' +
+'var url=res.liffId?("https://liff.line.me/"+res.liffId+"?invite="+encodeURIComponent(c.code)):"";' +
+'var urlRow=url?("<div class=\\"d-flex align-items-center gap-2 mt-1\\"><input type=\\"text\\" class=\\"form-control form-control-sm\\" readonly onclick=\\"this.select()\\" value=\\""+escHtml(url)+"\\">"+' +
+'"<button class=\\"btn btn-sm btn-outline-secondary\\" onclick=\\"copyReferralUrl(this,\'"+escHtml(url)+"\')\\">コピー</button></div>"):"";' +
+'return "<div class=\\"border rounded p-2 mb-1\\">"+' +
+'"<div class=\\"d-flex justify-content-between align-items-center\\">"+' +
 '"<div><b>"+escHtml(c.code)+"</b>"+(c.referrerName?"（"+escHtml(c.referrerName)+"）":"")+" — "+limitText+"</div>"+' +
 '"<button class=\\"btn btn-sm btn-outline-danger\\" onclick=\\"deleteReferralCodeFromUI(\'"+escHtml(c.code)+"\')\\">削除</button>"+' +
-'"</div>";' +
+'"</div>"+urlRow+"</div>";' +
 '}).join("");' +
 '})' +
 '.withFailureHandler(function(e){box.textContent="読み込み失敗: "+e.message;})' +
 '.getReferralCodesForEvent(eventName);' +
+'}' +
+'function copyReferralUrl(btn,url){' +
+'navigator.clipboard.writeText(url).then(function(){' +
+'var orig=btn.textContent;btn.textContent="コピーしました";' +
+'setTimeout(function(){btn.textContent=orig;},1500);' +
+'}).catch(function(){alert(url);});' +
 '}' +
 'function addReferralCodeFromUI(){' +
 'var eventName=document.getElementById("editEventModal").dataset.eventName;' +
