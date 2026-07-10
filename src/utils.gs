@@ -24,6 +24,16 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
+// シートの全データをリクエスト内でキャッシュしながら取得する（同じシートを何度も読み込むと応答が遅くなるため）
+const _sheetDataCache_ = {};
+function getCachedSheetData_(sheetName) {
+  if (_sheetDataCache_[sheetName]) return _sheetDataCache_[sheetName];
+  const sheet = getSheet(sheetName);
+  const data = (sheet && sheet.getLastRow() > 1) ? sheet.getDataRange().getValues() : [];
+  _sheetDataCache_[sheetName] = data;
+  return data;
+}
+
 // 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを、コードごとに上限件数を決めて登録できる
 function ensureReferralCodesSheet_() {
   const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -32,28 +42,15 @@ function ensureReferralCodesSheet_() {
     sheet = ss.insertSheet(SHEET.REFERRAL_CODES);
     sheet.appendRow(['大会名', 'コード', '紹介者名', '上限件数（1人でもペアでも1件・空欄=無制限）']);
     sheet.setFrozenRows(1);
+    delete _sheetDataCache_[SHEET.REFERRAL_CODES]; // 新規作成時はキャッシュが古いままにならないようにする
   }
   return sheet;
 }
 
-// イベント名とコードの組み合わせが紹介コードシートに登録されているか調べる。見つかれば{code, referrerName, maxCount}、無ければnull
-function findReferralCode_(eventName, code) {
-  if (!code) return null;
-  const sheet = ensureReferralCodesSheet_();
-  if (sheet.getLastRow() <= 1) return null;
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === eventName && String(data[i][1]).trim() === code) {
-      return { code, referrerName: String(data[i][2] || '').trim(), maxCount: parseInt(data[i][3]) || 0 };
-    }
-  }
-  return null;
-}
-
-// 指定イベントに登録された紹介コードを全件返す（ダッシュボード表示・上限合計の算出に使う）
+// 指定イベントに登録された紹介コードを全件返す（ダッシュボード表示・上限合計の算出に使う）。シートの読み込みはリクエスト内で1回だけ
 function getReferralCodesForEvent_(eventName) {
-  const sheet = ensureReferralCodesSheet_();
-  const data = sheet.getDataRange().getValues();
+  ensureReferralCodesSheet_();
+  const data = getCachedSheetData_(SHEET.REFERRAL_CODES);
   const codes = [];
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() !== eventName) continue;
@@ -64,21 +61,24 @@ function getReferralCodesForEvent_(eventName) {
   return codes;
 }
 
+// イベント名とコードの組み合わせが紹介コードシートに登録されているか調べる。見つかれば{code, referrerName, maxCount}、無ければnull
+function findReferralCode_(eventName, code) {
+  if (!code) return null;
+  return getReferralCodesForEvent_(eventName).find(c => c.code === code) || null;
+}
+
 // 当落シートの参加人数・紹介コード使用件数を1回の読み込みでまとめて集計し、リクエスト内でキャッシュする
 // （同じシートを何度も読み込むとスプレッドシートアクセスが増えて応答が遅くなるため）
 const _tournamentResultStatsCache_ = {};
 function getTournamentResultStats_(resultSheetName) {
   if (_tournamentResultStatsCache_[resultSheetName]) return _tournamentResultStatsCache_[resultSheetName];
   const stats = { participantCount: 0, usageByCode: {} };
-  const sheet = getSheet(resultSheetName);
-  if (sheet && sheet.getLastRow() > 1) {
-    const data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      const form = String(data[i][10] || ''); // K列：参加形式
-      stats.participantCount += (form === 'ペア') ? 2 : 1;
-      const code = String(data[i][13] || ''); // N列：紹介コード
-      if (code) stats.usageByCode[code] = (stats.usageByCode[code] || 0) + 1;
-    }
+  const data = getCachedSheetData_(resultSheetName);
+  for (let i = 1; i < data.length; i++) {
+    const form = String(data[i][10] || ''); // K列：参加形式
+    stats.participantCount += (form === 'ペア') ? 2 : 1;
+    const code = String(data[i][13] || ''); // N列：紹介コード
+    if (code) stats.usageByCode[code] = (stats.usageByCode[code] || 0) + 1;
   }
   _tournamentResultStatsCache_[resultSheetName] = stats;
   return stats;

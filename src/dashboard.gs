@@ -111,9 +111,7 @@ function getLiffEventsJson(userId, accessCode) {
     if (userId) {
       const baseUserId = userId.replace(/_p\d+$/, '');
       for (const ev of filtered) {
-        const sheet = getSheet(ev.resultSheetName);
-        if (!sheet || sheet.getLastRow() <= 1) continue;
-        const data = sheet.getDataRange().getValues();
+        const data = getCachedSheetData_(ev.resultSheetName);
         for (let i = 1; i < data.length; i++) {
           const uid = String(data[i][1] || '');
           if (uid === userId || uid.replace(/_p\d+$/, '') === baseUserId) {
