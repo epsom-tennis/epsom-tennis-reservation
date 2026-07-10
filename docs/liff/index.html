@@ -150,16 +150,25 @@ window.addEventListener('load', function() {
       ld.innerHTML =
         '<div style="color:#c00;font-size:14px;line-height:1.8;padding:10px 0">' +
         '⚠️ 読み込みがタイムアウトしました。<br><br>' +
-        'LINEアプリを完全に閉じてから<br>再度開いてください。<br><br>' +
+        'LINEアプリを完全に閉じてから<br>再度開いてください。<br>' +
+        '<span style="font-size:11px;color:#999">エラーコード: 301</span><br><br>' +
         '<button onclick="location.reload()" style="background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:15px;font-weight:bold">再読み込み</button>' +
         '</div>';
     }
   }, 15000);
 
+  // エラー発生箇所を後から特定できるよう、失敗したステップごとに3桁のエラーコードを付与する
+  function taggedError(code, err) {
+    var e = new Error((err && err.message) ? err.message : String(err));
+    e.code = code;
+    return e;
+  }
+
   liff.init({ liffId: LIFF_ID })
+    .catch(function(err) { throw taggedError(101, err); })
     .then(function() {
       if (!liff.isLoggedIn()) { liff.login(); return; }
-      return liff.getProfile();
+      return liff.getProfile().catch(function(err) { throw taggedError(102, err); });
     })
     .then(function(profile) {
       if (!profile) return;
@@ -171,12 +180,12 @@ window.addEventListener('load', function() {
         detail:  getLiffUrlParam('consult') || ''
       }) }).catch(function(){});
       var fetchTimeout = new Promise(function(_, reject) {
-        setTimeout(function() { reject(new Error('サーバーの応答がありませんでした（タイムアウト）')); }, 10000);
+        setTimeout(function() { reject(taggedError(203, new Error('サーバーの応答がありませんでした（タイムアウト）'))); }, 10000);
       });
       return Promise.race([
         Promise.all([
-          fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId) + '&invite=' + encodeURIComponent(getLiffUrlParam('invite') || '')).then(function(r){ return r.json(); }),
-          fetch(GAS_URL + '?action=getMember&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }),
+          fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId) + '&invite=' + encodeURIComponent(getLiffUrlParam('invite') || '')).then(function(r){ return r.json(); }).catch(function(err) { throw taggedError(201, err); }),
+          fetch(GAS_URL + '?action=getMember&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }).catch(function(err) { throw taggedError(202, err); }),
           fetch(GAS_URL + '?action=getTerms').then(function(r){ return r.json(); }).catch(function(){ return {}; })
         ]),
         fetchTimeout
@@ -201,7 +210,8 @@ window.addEventListener('load', function() {
     })
     .catch(function(e) {
       clearTimeout(loadTimer);
-      showErr('読み込みに失敗しました。LINEアプリを完全に閉じてから再度開いてください。\n\n(' + (e && e.message ? e.message : String(e)) + ')');
+      var code = (e && e.code) || 999;
+      showErr('読み込みに失敗しました。LINEアプリを完全に閉じてから再度開いてください。\n\nエラーコード: ' + code + '\n(' + (e && e.message ? e.message : String(e)) + ')');
     });
 });
 
