@@ -181,6 +181,8 @@ function createNewEvent(data) {
       parseInt(capacity) || '',                         // Z列：定員（大会イベント専用）
       ouboStatusHidden === true || ouboStatusHidden === 'true', // AA列：応募状況非表示フラグ
     ]);
+    // R列（参加費）は「3900円/1人」等の数字混じりテキストがSheetsに数値・通貨として自動変換されてしまうため、テキスト形式に固定して書き直す
+    configSheet.getRange(configSheet.getLastRow(), 18).setNumberFormat('@').setValue(fee || '');
 
     return {
       success: true,
@@ -368,7 +370,8 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 15).setValue(meetingTime || '');
     configSheet.getRange(rowIdx, 16).setValue(courtType || '');
     configSheet.getRange(rowIdx, 17).setValue(items || '');
-    configSheet.getRange(rowIdx, 18).setValue(fee || '');
+    // 「3900円/1人」等の数字混じりテキストがSheetsに数値・通貨として自動変換されるのを防ぐため、テキスト形式に固定する
+    configSheet.getRange(rowIdx, 18).setNumberFormat('@').setValue(fee || '');
     configSheet.getRange(rowIdx, 19).setValue(lockerInfo || '');
     configSheet.getRange(rowIdx, 20).setValue(facilityUrl || '');
     configSheet.getRange(rowIdx, 21).setValue(confirmDeadline || '');
