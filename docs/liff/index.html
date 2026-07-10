@@ -510,6 +510,7 @@ function buildSingleEventHtml(ev, i) {
   var coachLine = ev.coachName ? '<span>👤 ' + h(ev.coachName) + '</span>' : '';
   var dateLine  = ev.eventDate ? '<span>📅 ' + ev.eventDate + (ev.eventTime ? '　🕐 ' + h(ev.eventTime) : '') + '</span>' : '';
   var venueLine = ev.venue ? '<span>📍 ' + h(ev.venue) + '</span>' : '';
+  var feeLine   = ev.fee ? '<span>💰 ' + h(ev.fee) + '</span>' : (ev.isFreeEvent ? '<span>💰 無料</span>' : '');
   var safeChannelUrl = (function(u) {
     try { var p = new URL(u); return (p.protocol === 'http:' || p.protocol === 'https:') ? u : ''; } catch(e) { return ''; }
   })(ev.channelUrl || '');
@@ -568,7 +569,7 @@ function buildSingleEventHtml(ev, i) {
     evCheckbox +
     '<div>' +
       '<div class="ev-name">' + h(ev.name) + appliedBadge + capacityBadge + '</div>' +
-      '<div class="ev-meta">' + (coachLine || '') + dateLine + (venueLine || '') + (channelLine || '') + '</div>' +
+      '<div class="ev-meta">' + (coachLine || '') + dateLine + (venueLine || '') + (feeLine || '') + (channelLine || '') + '</div>' +
       descLine +
       deadlineLine +
     '</div></label>' +

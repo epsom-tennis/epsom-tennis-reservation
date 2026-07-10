@@ -142,6 +142,7 @@ function getLiffEventsJson(userId) {
         description:     ev.description || '',
         eventType:       ev.eventType   || 'オフライン',
         channelUrl:      ev.channelUrl  || '',
+        fee:             ev.fee         || '',
         isFreeEvent:     ev.isFreeEvent === true,
         alreadyApplied:  appliedSheets.has(ev.resultSheetName),
         capacity:        ev.capacity    || 0,
