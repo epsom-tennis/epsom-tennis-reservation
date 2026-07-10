@@ -64,30 +64,42 @@ function getReferralCodesForEvent_(eventName) {
   return codes;
 }
 
+// 当落シートの参加人数・紹介コード使用件数を1回の読み込みでまとめて集計し、リクエスト内でキャッシュする
+// （同じシートを何度も読み込むとスプレッドシートアクセスが増えて応答が遅くなるため）
+const _tournamentResultStatsCache_ = {};
+function getTournamentResultStats_(resultSheetName) {
+  if (_tournamentResultStatsCache_[resultSheetName]) return _tournamentResultStatsCache_[resultSheetName];
+  const stats = { participantCount: 0, usageByCode: {} };
+  const sheet = getSheet(resultSheetName);
+  if (sheet && sheet.getLastRow() > 1) {
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      const form = String(data[i][10] || ''); // K列：参加形式
+      stats.participantCount += (form === 'ペア') ? 2 : 1;
+      const code = String(data[i][13] || ''); // N列：紹介コード
+      if (code) stats.usageByCode[code] = (stats.usageByCode[code] || 0) + 1;
+    }
+  }
+  _tournamentResultStatsCache_[resultSheetName] = stats;
+  return stats;
+}
+
 // 大会の当落シートで、指定した紹介コードを使って応募された件数を数える
 // 定員（人数ベース、ペア=2名カウント）とは違い、紹介コードの上限は「1人でもペアでも1応募＝1件」として数える
 function countReferralCodeUsage_(resultSheetName, code) {
-  const sheet = getSheet(resultSheetName);
-  if (!sheet || sheet.getLastRow() <= 1) return 0;
-  const data = sheet.getDataRange().getValues();
-  let count = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][13] || '') === code) { // N列：紹介コード
-      count += 1;
-    }
-  }
-  return count;
+  if (!code) return 0;
+  return getTournamentResultStats_(resultSheetName).usageByCode[code] || 0;
 }
 
 // 上限件数付きの紹介コードのうち、まだ使われていない枠の合計数を返す（上限なしのコードは含めない）
 // 一般応募が使える枠は、この「未使用の招待枠×2（ペアの可能性を考慮）」を定員から差し引いた分までとする
 function countUnusedReferralSlots_(eventName, resultSheetName) {
-  const codes = getReferralCodesForEvent_(eventName);
+  const codes = getReferralCodesForEvent_(eventName).filter(c => c.maxCount > 0);
+  if (codes.length === 0) return 0;
+  const usageByCode = getTournamentResultStats_(resultSheetName).usageByCode;
   let unused = 0;
   for (const c of codes) {
-    if (c.maxCount > 0) {
-      unused += Math.max(0, c.maxCount - countReferralCodeUsage_(resultSheetName, c.code));
-    }
+    unused += Math.max(0, c.maxCount - (usageByCode[c.code] || 0));
   }
   return unused;
 }
@@ -316,15 +328,7 @@ function notifyStaff(text) {
 // 大会シートの現在参加人数をカウント（ペア=2名、1人=1名として集計）
 function countTournamentParticipants_(resultSheetName) {
   try {
-    const sheet = getSheet(resultSheetName);
-    if (!sheet || sheet.getLastRow() <= 1) return 0;
-    const data = sheet.getDataRange().getValues();
-    let count = 0;
-    for (let i = 1; i < data.length; i++) {
-      const form = String(data[i][10] || ''); // K列：参加形式
-      count += (form === 'ペア') ? 2 : 1;
-    }
-    return count;
+    return getTournamentResultStats_(resultSheetName).participantCount;
   } catch (err) {
     Logger.log('countTournamentParticipants_ error: ' + err.toString());
     return 0;
