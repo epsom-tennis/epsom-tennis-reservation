@@ -188,16 +188,14 @@ function submitLiffApplication(data) {
         }
         if (already && !isOnline) continue; // オンラインは常時募集のため重複応募を許可
 
-        // 限定公開イベント：一覧には出さなくても直接応募される可能性があるため、サーバー側でもコード一致を確認する
+        // 限定公開イベント：一覧には出さなくても直接応募される可能性があるため、サーバー側でも紹介コードの登録有無を確認する
         const serverEvForRestriction = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
-        if (serverEvForRestriction && serverEvForRestriction.isRestricted &&
-            (!data.accessCode || data.accessCode !== serverEvForRestriction.restrictedCode)) {
+        // 紹介コードシートに登録されたコードと一致するかどうか（限定公開の認可・紹介枠予約人数の判定・備考への印付けで使う）
+        const referralMatch = data.accessCode ? findReferralCode_(ev.name, data.accessCode) : null;
+        if (serverEvForRestriction && serverEvForRestriction.isRestricted && !referralMatch) {
           return { success: false, error: `「${ev.name}」は限定公開のイベントです。専用リンクからアクセスしてください。` };
         }
-
-        // 紹介枠：応募コードが限定公開コードと一致するかどうか（紹介枠予約人数の判定・備考への印付けの両方で使う）
-        const isReferralEntry = !!(serverEvForRestriction && serverEvForRestriction.restrictedCode &&
-          data.accessCode && data.accessCode === serverEvForRestriction.restrictedCode);
+        const isReferralEntry = !!referralMatch;
 
         // 大会：先着受付終了日時を過ぎている場合は抽選待ち。人数上限を設けず自動当選にもしない（後でスタッフが結果を確定し一括送信する）
         const isLotteryPhase = isTournament && !!(serverEvForRestriction && serverEvForRestriction.firstComeDeadlineAt &&
@@ -244,8 +242,8 @@ function submitLiffApplication(data) {
           ] : isTournament ? [
             ev.participantForm  || '',       // K: 参加形式（1人/ペア）
             ev.pairPartnerName  || '',       // L: ペア相手名
-            // 紹介枠経由の応募には、スタッフが一覧で分かるよう備考の先頭に印を付ける
-            (isReferralEntry ? '【紹介枠】' : '') + (ev.freeText || ''), // M: 備考
+            // 紹介枠経由の応募には、スタッフが一覧で分かるよう備考の先頭に紹介者名を印として付ける
+            (referralMatch ? `【紹介枠:${referralMatch.referrerName || '不明'}】` : '') + (ev.freeText || ''), // M: 備考
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
         // 大会：先着順のため応募時点で当選確定・通知済みとして記録する（抽選期間中は保留のまま。スタッフが結果を決めて一括送信する）

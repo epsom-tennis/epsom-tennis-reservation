@@ -103,7 +103,7 @@ function getLiffEventsJson(userId, accessCode) {
     today.setHours(0, 0, 0, 0);
     const filtered = getAllEvents()
       .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today))
-      .filter(ev => !ev.isRestricted || (accessCode && ev.restrictedCode && accessCode === ev.restrictedCode));
+      .filter(ev => !ev.isRestricted || (accessCode && findReferralCode_(ev.name, accessCode)));
 
     // 応募済みシート名のセットを構築
     const appliedSheets = new Set();
@@ -130,8 +130,8 @@ function getLiffEventsJson(userId, accessCode) {
       let capacityStatus = '';
       if (isTournament && ev.capacity > 0 && !isLotteryPhase) {
         const current = countTournamentParticipants_(ev.resultSheetName);
-        // 紹介枠のコードを持つ人には紹介枠込みの定員で、一般の人には紹介枠を除いた定員で残り枠を判定する
-        const isReferralViewer = !!(ev.restrictedCode && accessCode && accessCode === ev.restrictedCode);
+        // 紹介コードを持つ人には紹介枠込みの定員で、一般の人には紹介枠を除いた定員で残り枠を判定する
+        const isReferralViewer = !!(accessCode && findReferralCode_(ev.name, accessCode));
         const effectiveCapacity = isReferralViewer ? ev.capacity : (ev.capacity - (ev.referralReserved || 0));
         const remaining = effectiveCapacity - current;
         if (remaining <= 0) capacityStatus = 'full';

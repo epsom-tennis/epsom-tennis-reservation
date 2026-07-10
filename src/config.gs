@@ -5,6 +5,7 @@ const SHEET = {
   MEMBERS: '会員マスタ',
   ACTION_LOG: 'アクション履歴',
   TERMS: '規約管理',
+  REFERRAL_CODES: '紹介コード',
 };
 
 // スクリプトプロパティを取得するヘルパー

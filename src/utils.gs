@@ -24,6 +24,32 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
+// 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを登録できる
+function ensureReferralCodesSheet_() {
+  const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
+  let sheet = ss.getSheetByName(SHEET.REFERRAL_CODES);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET.REFERRAL_CODES);
+    sheet.appendRow(['大会名', 'コード', '紹介者名']);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// イベント名とコードの組み合わせが紹介コードシートに登録されているか調べる。見つかれば{code, referrerName}、無ければnull
+function findReferralCode_(eventName, code) {
+  if (!code) return null;
+  const sheet = ensureReferralCodesSheet_();
+  if (sheet.getLastRow() <= 1) return null;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === eventName && String(data[i][1]).trim() === code) {
+      return { code, referrerName: String(data[i][2] || '').trim() };
+    }
+  }
+  return null;
+}
+
 // ひらがなを全角カタカナに変換する（フリガナ入力の表記ゆれを統一するため。U+3041-3096のひらがな範囲を+0x60シフト）
 function toFullWidthKatakana_(str) {
   if (!str) return '';
@@ -72,15 +98,12 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 27).getValue()) {
     sheet.getRange(1, 27).setValue('応募状況非表示');
   }
-  // AB列：限定公開フラグ（TRUEにするとLIFFの通常一覧から非表示になり、専用URL（?invite=）でのみ表示・応募できる）
+  // AB列：限定公開フラグ（TRUEにするとLIFFの通常一覧から非表示になり、「紹介コード」シートに登録したコードを持つ人にのみ表示・応募できる）
   if (!sheet.getRange(1, 28).getValue()) {
     sheet.getRange(1, 28).setValue('限定公開');
   }
-  // AC列：限定公開コード（専用URLの?invite=パラメータと一致した場合のみイベントを表示・応募可能にする。紹介枠の合言葉としても使う）
-  if (!sheet.getRange(1, 29).getValue()) {
-    sheet.getRange(1, 29).setValue('限定公開コード');
-  }
-  // AD列：紹介枠予約人数（大会専用。定員のうちこの人数分は、AC列のコードを持つ人にのみ確保する）
+  // AC列：（未使用）紹介コードは「紹介コード」シートで複数登録できるようにしたため、この列は使用しない
+  // AD列：紹介枠予約人数（大会専用。定員のうちこの人数分は、「紹介コード」シートに登録されたコードを持つ人にのみ確保する）
   if (!sheet.getRange(1, 30).getValue()) {
     sheet.getRange(1, 30).setValue('紹介枠予約人数');
   }
@@ -97,6 +120,7 @@ function getAllEvents() {
   const sheet = getSheet(SHEET.CONFIG);
   if (!sheet) return [];
   ensureEventDetailColumns_(sheet);
+  ensureReferralCodesSheet_(); // 「紹介コード」シートをスタッフが手動で用意しなくていいよう自動作成する
   const data = sheet.getDataRange().getValues();
   const events = [];
   for (let i = 1; i < data.length; i++) {
@@ -129,7 +153,6 @@ function getAllEvents() {
     const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（大会専用。先着順の最大参加人数）
     const ouboStatusHidden    = data[i][26] === true || String(data[i][26]).toUpperCase() === 'TRUE'; // AA列：応募状況非表示フラグ
     const isRestricted       = data[i][27] === true || String(data[i][27]).toUpperCase() === 'TRUE'; // AB列：限定公開フラグ
-    const restrictedCode     = String(data[i][28] || '').trim(); // AC列：限定公開コード（紹介枠の合言葉も兼ねる）
     const referralReserved   = parseInt(data[i][29]) || 0; // AD列：紹介枠予約人数（大会専用）
     const firstComeDeadlineAt = data[i][30] ? new Date(data[i][30]) : null; // AE列：先着受付終了日時（大会専用）
     const resultSheetName = appSheetName
@@ -140,7 +163,7 @@ function getAllEvents() {
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
       closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
-      isRestricted, restrictedCode, referralReserved, firstComeDeadlineAt,
+      isRestricted, referralReserved, firstComeDeadlineAt,
     });
   }
   return events;
