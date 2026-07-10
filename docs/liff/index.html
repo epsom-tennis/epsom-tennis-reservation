@@ -474,10 +474,7 @@ function buildEventsHtml() {
   // 登録直後に「続けて応募する」で進んだ場合も、来た時のURL（type指定）にそのまま従う
   if (typeParam === 'tournament') return buildEventGroupHtml('🏆 大会', tournament);
   if (typeParam === 'online') return buildEventGroupHtml('💻 オンラインイベント', online);
-  if (typeParam === 'offline') {
-    return buildEventGroupHtml('📍 オフラインイベント', offline) +
-           buildEventGroupHtml('🏆 大会', tournament);
-  }
+  if (typeParam === 'offline') return buildEventGroupHtml('📍 オフラインイベント', offline);
   // type指定なしURLの場合は全イベントを表示する
   return buildEventGroupHtml('📍 オフラインイベント', offline) +
          buildEventGroupHtml('🏆 大会', tournament) +
