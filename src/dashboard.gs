@@ -279,6 +279,7 @@ function getEventsData() {
       isFreeEvent:      ev.isFreeEvent      === true,
       capacity:         ev.capacity         || 0,
       ouboStatusHidden: ev.ouboStatusHidden === true,
+      firstComeDeadlineAtISO: ev.firstComeDeadlineAt ? Utilities.formatDate(ev.firstComeDeadlineAt, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm") : '',
       appCount, winCount, loseCount, sentCount, pendingCount,
       status: ev.status || '',
     };
@@ -1002,6 +1003,11 @@ function getDashboardHtml() {
 '<input type="number" class="form-control" id="ee_capacity" placeholder="32" min="2">' +
 '<div class="form-text">先着順の最大参加人数（ペア=2名カウント）</div>' +
 '</div>' +
+'<div id="ee_first_come_deadline_field" class="col-6" style="display:none">' +
+'<label class="form-label fw-bold">先着受付終了日時<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<input type="datetime-local" class="form-control" id="ee_first_come_deadline">' +
+'<div class="form-text">これ以降の応募は自動当選・満員表示にせず抽選待ちにします（人数の上限も設けません）</div>' +
+'</div>' +
 '<div id="ee_referral_field" class="col-12" style="display:none">' +
 '<label class="form-label fw-bold">紹介コード</label>' +
 '<div id="ee_referral_list" class="mb-2"></div>' +
@@ -1319,9 +1325,11 @@ function getDashboardHtml() {
 'document.getElementById("ee_online_fields").style.display=isOnline?"":"none";' +
 'var eecf=document.getElementById("ee_capacity_field");if(eecf)eecf.style.display=isTournamentEv?"":"none";' +
 'var eerf=document.getElementById("ee_referral_field");if(eerf)eerf.style.display=isTournamentEv?"":"none";' +
+'var eefcdf=document.getElementById("ee_first_come_deadline_field");if(eefcdf)eefcdf.style.display=isTournamentEv?"":"none";' +
 'if(isTournamentEv)loadReferralCodes(ev.name);' +
 'var eecoacf=document.getElementById("ee_coach_field");if(eecoacf)eecoacf.style.display=isTournamentEv?"none":"";' +
 'var eecap=document.getElementById("ee_capacity");if(eecap)eecap.value=ev.capacity||"";' +
+'var eefcd=document.getElementById("ee_first_come_deadline");if(eefcd)eefcd.value=ev.firstComeDeadlineAtISO||"";' +
 'document.getElementById("ee_date").value=ev.eventDateISO||"";' +
 'document.getElementById("ee_closing").value=ev.closingDateISO||"";' +
 'document.getElementById("ee_opening").value=ev.openingDateISO||"";' +
@@ -1436,6 +1444,7 @@ function getDashboardHtml() {
 'payload.lockerInfo=document.getElementById("ee_locker").value.trim();' +
 'payload.facilityUrl=document.getElementById("ee_facility_url").value.trim();' +
 'var eecapEl=document.getElementById("ee_capacity");payload.capacity=eecapEl?parseInt(eecapEl.value)||0:0;' +
+'var eefcdEl=document.getElementById("ee_first_come_deadline");payload.firstComeDeadlineAt=eefcdEl?eefcdEl.value:"";' +
 'var eohEl=document.getElementById("ee_oubo_hidden");payload.ouboStatusHidden=!!(eohEl&&eohEl.checked);' +
 '}' +
 'var res=document.getElementById("ee_result");res.textContent="保存中...";' +

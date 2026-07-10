@@ -337,7 +337,7 @@ function updateEventDetails(data) {
   try {
     const { appSheetName, name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden } = data;
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden, firstComeDeadlineAt } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -381,6 +381,7 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 25).setValue(isFreeEvent === true || isFreeEvent === 'true');
     configSheet.getRange(rowIdx, 26).setValue(parseInt(capacity) || '');  // Z列：定員（大会イベント専用）
     configSheet.getRange(rowIdx, 27).setValue(ouboStatusHidden === true || ouboStatusHidden === 'true'); // AA列：応募状況非表示フラグ
+    configSheet.getRange(rowIdx, 31).setValue(toDateOrBlank(firstComeDeadlineAt)); // AE列：先着受付終了日時（大会専用）
 
     return { success: true };
   } catch (err) {
