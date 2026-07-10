@@ -212,22 +212,17 @@ function submitLiffApplication(data) {
               currentCount += (form === 'ペア') ? 2 : 1;
             }
             const needed = (ev.participantForm === 'ペア') ? 2 : 1;
+            // 紹介コード・一般応募のどちらも同じ土俵で先着順。予約枠は設けず、大会全体の定員だけを共有で見る
+            if (currentCount + needed > capacity) {
+              return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
+            }
+            // 紹介コードには別途、そのコード単体の上限件数がある（先着とは別軸のチェック）
             if (referralMatch && referralMatch.maxCount > 0) {
               // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」でカウントする
               const codeUsed = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
               if (codeUsed + 1 > referralMatch.maxCount) {
                 return { success: false, error: `「${ev.name}」のこちらのご紹介枠は上限に達しているため応募できません。` };
               }
-            } else if (!referralMatch) {
-              // 一般の応募：全紹介コードの上限件数合計 × 2（ペアなら1件で2名分になり得るため）を除いた枠までしか使えない
-              const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce(function(sum, c) { return sum + c.maxCount * 2; }, 0);
-              if (currentCount + needed > capacity - totalReferralReserved) {
-                return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
-              }
-            }
-            // 紹介枠・一般枠どちらも、大会全体の定員は超えられない
-            if (currentCount + needed > capacity) {
-              return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
             }
           }
         }

@@ -138,14 +138,12 @@ function getLiffEventsJson(userId, accessCode) {
           else if (remaining / referralMatch.maxCount <= 0.50) capacityStatus = 'low';
           else capacityStatus = 'normal';
         } else {
-          // 上限なしの紹介コードを持つ人には大会全体の残り枠を、一般の人には紹介コードの上限件数合計×2（全件ペアの場合）を除いた枠を見せる
-          const totalReferralReserved = referralMatch ? 0 : getReferralCodesForEvent_(ev.name).reduce((sum, c) => sum + c.maxCount * 2, 0);
-          const effectiveCapacity = ev.capacity - totalReferralReserved;
+          // 紹介コードの有無に関わらず、大会全体の定員を同じ土俵の先着枠として見る（予約枠は設けない）
           const current = countTournamentParticipants_(ev.resultSheetName);
-          const remaining = effectiveCapacity - current;
+          const remaining = ev.capacity - current;
           if (remaining <= 0) capacityStatus = 'full';
           else if (remaining === 1) capacityStatus = 'pair_closed';
-          else if (remaining / effectiveCapacity <= 0.50) capacityStatus = 'low';
+          else if (remaining / ev.capacity <= 0.50) capacityStatus = 'low';
           else capacityStatus = 'normal';
         }
       }
