@@ -24,19 +24,19 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
-// 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを登録できる
+// 紹介コードシートを取得する（無ければヘッダー付きで自動作成する）。1つの大会に対して複数の紹介コードを、コードごとに上限人数を決めて登録できる
 function ensureReferralCodesSheet_() {
   const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
   let sheet = ss.getSheetByName(SHEET.REFERRAL_CODES);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET.REFERRAL_CODES);
-    sheet.appendRow(['大会名', 'コード', '紹介者名']);
+    sheet.appendRow(['大会名', 'コード', '紹介者名', '上限人数（空欄=無制限）']);
     sheet.setFrozenRows(1);
   }
   return sheet;
 }
 
-// イベント名とコードの組み合わせが紹介コードシートに登録されているか調べる。見つかれば{code, referrerName}、無ければnull
+// イベント名とコードの組み合わせが紹介コードシートに登録されているか調べる。見つかれば{code, referrerName, maxCount}、無ければnull
 function findReferralCode_(eventName, code) {
   if (!code) return null;
   const sheet = ensureReferralCodesSheet_();
@@ -44,10 +44,46 @@ function findReferralCode_(eventName, code) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === eventName && String(data[i][1]).trim() === code) {
-      return { code, referrerName: String(data[i][2] || '').trim() };
+      return { code, referrerName: String(data[i][2] || '').trim(), maxCount: parseInt(data[i][3]) || 0 };
     }
   }
   return null;
+}
+
+// 指定イベントに登録された紹介コードを全件返す（ダッシュボード表示・上限合計の算出に使う）
+function getReferralCodesForEvent_(eventName) {
+  const sheet = ensureReferralCodesSheet_();
+  const data = sheet.getDataRange().getValues();
+  const codes = [];
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() !== eventName) continue;
+    const code = String(data[i][1] || '').trim();
+    if (!code) continue;
+    codes.push({ code, referrerName: String(data[i][2] || '').trim(), maxCount: parseInt(data[i][3]) || 0 });
+  }
+  return codes;
+}
+
+// 大会の当落シートで、指定した紹介コードを使って応募した人数を数える（ペア=2名カウント）
+function countReferralCodeUsage_(resultSheetName, code) {
+  const sheet = getSheet(resultSheetName);
+  if (!sheet || sheet.getLastRow() <= 1) return 0;
+  const data = sheet.getDataRange().getValues();
+  let count = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][13] || '') === code) { // N列：紹介コード
+      const form = String(data[i][10] || ''); // K列：参加形式
+      count += (form === 'ペア') ? 2 : 1;
+    }
+  }
+  return count;
+}
+
+// 当落シートのN列（紹介コード）ヘッダーを補充する（旧・大会イベント用に後から追加した列のため）
+function ensureTournamentReferralColumn_(resultSheet) {
+  if (!resultSheet.getRange(1, 14).getValue()) {
+    resultSheet.getRange(1, 14).setValue('紹介コード');
+  }
 }
 
 // ひらがなを全角カタカナに変換する（フリガナ入力の表記ゆれを統一するため。U+3041-3096のひらがな範囲を+0x60シフト）
@@ -102,11 +138,7 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 28).getValue()) {
     sheet.getRange(1, 28).setValue('限定公開');
   }
-  // AC列：（未使用）紹介コードは「紹介コード」シートで複数登録できるようにしたため、この列は使用しない
-  // AD列：紹介枠予約人数（大会専用。定員のうちこの人数分は、「紹介コード」シートに登録されたコードを持つ人にのみ確保する）
-  if (!sheet.getRange(1, 30).getValue()) {
-    sheet.getRange(1, 30).setValue('紹介枠予約人数');
-  }
+  // AC・AD列：（未使用）紹介コード・上限人数は「紹介コード」シートでコードごとに登録できるようにしたため、これらの列は使用しない
   // AE列：先着受付終了日時（大会専用。これ以降の応募は自動当選にせず抽選待ちとして保留し、人数の上限も設けない）
   if (!sheet.getRange(1, 31).getValue()) {
     sheet.getRange(1, 31).setValue('先着受付終了日時');
@@ -153,7 +185,6 @@ function getAllEvents() {
     const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（大会専用。先着順の最大参加人数）
     const ouboStatusHidden    = data[i][26] === true || String(data[i][26]).toUpperCase() === 'TRUE'; // AA列：応募状況非表示フラグ
     const isRestricted       = data[i][27] === true || String(data[i][27]).toUpperCase() === 'TRUE'; // AB列：限定公開フラグ
-    const referralReserved   = parseInt(data[i][29]) || 0; // AD列：紹介枠予約人数（大会専用）
     const firstComeDeadlineAt = data[i][30] ? new Date(data[i][30]) : null; // AE列：先着受付終了日時（大会専用）
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
@@ -163,7 +194,7 @@ function getAllEvents() {
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
       closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
-      isRestricted, referralReserved, firstComeDeadlineAt,
+      isRestricted, firstComeDeadlineAt,
     });
   }
   return events;

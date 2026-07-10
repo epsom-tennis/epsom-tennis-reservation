@@ -212,10 +212,21 @@ function submitLiffApplication(data) {
               currentCount += (form === 'ペア') ? 2 : 1;
             }
             const needed = (ev.participantForm === 'ペア') ? 2 : 1;
-            // 紹介枠：コード一致の応募のみ紹介枠込みの定員まで使える。一般の応募は紹介枠を除いた定員まで
-            const referralReserved = (serverEvForCap && serverEvForCap.referralReserved) || 0;
-            const effectiveCapacity = isReferralEntry ? capacity : (capacity - referralReserved);
-            if (currentCount + needed > effectiveCapacity) {
+            if (referralMatch && referralMatch.maxCount > 0) {
+              // 上限人数付きの紹介コード：そのコード専用の使用人数だけでチェックする
+              const codeUsed = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
+              if (codeUsed + needed > referralMatch.maxCount) {
+                return { success: false, error: `「${ev.name}」のこちらのご紹介枠は上限に達しているため応募できません。` };
+              }
+            } else if (!referralMatch) {
+              // 一般の応募：全紹介コードの上限人数合計を除いた枠までしか使えない
+              const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce(function(sum, c) { return sum + c.maxCount; }, 0);
+              if (currentCount + needed > capacity - totalReferralReserved) {
+                return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
+              }
+            }
+            // 紹介枠・一般枠どちらも、大会全体の定員は超えられない
+            if (currentCount + needed > capacity) {
               return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
             }
           }
@@ -244,8 +255,10 @@ function submitLiffApplication(data) {
             ev.pairPartnerName  || '',       // L: ペア相手名
             // 紹介枠経由の応募には、スタッフが一覧で分かるよう備考の先頭に紹介者名を印として付ける
             (referralMatch ? `【紹介枠:${referralMatch.referrerName || '不明'}】` : '') + (ev.freeText || ''), // M: 備考
+            referralMatch ? referralMatch.code : '',           // N: 紹介コード（コードごとの上限人数集計に使う）
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
+        if (isTournament) ensureTournamentReferralColumn_(resultSheet); // 旧イベントにN列ヘッダーが無い場合に補充する
         // 大会：先着順のため応募時点で当選確定・通知済みとして記録する（抽選期間中は保留のまま。スタッフが結果を決めて一括送信する）
         if (isTournament && !isLotteryPhase) {
           const newRow = resultSheet.getLastRow();

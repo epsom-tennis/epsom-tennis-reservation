@@ -129,10 +129,22 @@ function getLiffEventsJson(userId, accessCode) {
       const isLotteryPhase = !!(ev.firstComeDeadlineAt && new Date() > ev.firstComeDeadlineAt);
       let capacityStatus = '';
       if (isTournament && ev.capacity > 0 && !isLotteryPhase) {
-        const current = countTournamentParticipants_(ev.resultSheetName);
-        // 紹介コードを持つ人には紹介枠込みの定員で、一般の人には紹介枠を除いた定員で残り枠を判定する
-        const isReferralViewer = !!(accessCode && findReferralCode_(ev.name, accessCode));
-        const effectiveCapacity = isReferralViewer ? ev.capacity : (ev.capacity - (ev.referralReserved || 0));
+        const referralMatch = accessCode ? findReferralCode_(ev.name, accessCode) : null;
+        let effectiveCapacity, current;
+        if (referralMatch && referralMatch.maxCount > 0) {
+          // 上限人数付きの紹介コードを持つ人には、そのコード専用の残り枠を見せる
+          effectiveCapacity = referralMatch.maxCount;
+          current = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
+        } else if (referralMatch) {
+          // 上限なしの紹介コードを持つ人には、大会全体の残り枠を見せる
+          effectiveCapacity = ev.capacity;
+          current = countTournamentParticipants_(ev.resultSheetName);
+        } else {
+          // 一般の人には、全紹介コードの上限人数合計を除いた枠を見せる
+          const totalReferralReserved = getReferralCodesForEvent_(ev.name).reduce((sum, c) => sum + c.maxCount, 0);
+          effectiveCapacity = ev.capacity - totalReferralReserved;
+          current = countTournamentParticipants_(ev.resultSheetName);
+        }
         const remaining = effectiveCapacity - current;
         if (remaining <= 0) capacityStatus = 'full';
         else if (remaining === 1) capacityStatus = 'pair_closed';
@@ -164,6 +176,57 @@ function getLiffEventsJson(userId, accessCode) {
 }
 
 // ===== クライアントから呼び出すサーバー関数 =====
+
+// 指定イベントに登録された紹介コード一覧と、それぞれの使用人数を返す（編集モーダルの紹介コード管理用）
+function getReferralCodesForEvent(eventName) {
+  try {
+    const codes = getReferralCodesForEvent_(eventName);
+    const ev = getAllEvents().find(e => e.name === eventName);
+    const usedCounts = codes.map(c => ev ? countReferralCodeUsage_(ev.resultSheetName, c.code) : 0);
+    return {
+      success: true,
+      codes: codes.map((c, i) => ({ code: c.code, referrerName: c.referrerName, maxCount: c.maxCount, usedCount: usedCounts[i] })),
+    };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// 紹介コードを1件追加する（同じ大会に同じコードは重複登録できない）
+function addReferralCode(eventName, code, referrerName, maxCount) {
+  try {
+    if (!eventName || !String(code || '').trim()) return { success: false, error: 'コードは必須です。' };
+    const trimmedCode = String(code).trim();
+    const sheet = ensureReferralCodesSheet_();
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === eventName && String(data[i][1]).trim() === trimmedCode) {
+        return { success: false, error: `コード「${trimmedCode}」は既にこの大会に登録されています。` };
+      }
+    }
+    sheet.appendRow([eventName, trimmedCode, String(referrerName || '').trim(), parseInt(maxCount) || '']);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// 紹介コードを1件削除する
+function deleteReferralCode(eventName, code) {
+  try {
+    const sheet = ensureReferralCodesSheet_();
+    const data = sheet.getDataRange().getValues();
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][0]).trim() === eventName && String(data[i][1]).trim() === code) {
+        sheet.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, error: '対象のコードが見つかりません。' };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
 
 // 全イベントの一覧と統計情報を返す
 function getEventsData() {
@@ -940,6 +1003,17 @@ function getDashboardHtml() {
 '<input type="number" class="form-control" id="ee_capacity" placeholder="32" min="2">' +
 '<div class="form-text">先着順の最大参加人数（ペア=2名カウント）</div>' +
 '</div>' +
+'<div id="ee_referral_field" class="col-12" style="display:none">' +
+'<label class="form-label fw-bold">紹介コード</label>' +
+'<div id="ee_referral_list" class="mb-2"></div>' +
+'<div class="d-flex gap-2 flex-wrap align-items-end">' +
+'<div><label class="form-label small mb-0">コード</label><input type="text" class="form-control form-control-sm" id="ee_referral_code_input" style="width:130px" placeholder="SHOKAI001"></div>' +
+'<div><label class="form-label small mb-0">紹介者名</label><input type="text" class="form-control form-control-sm" id="ee_referral_name_input" style="width:130px" placeholder="山田花子"></div>' +
+'<div><label class="form-label small mb-0">上限人数<span class="text-muted">（空欄=無制限）</span></label><input type="number" class="form-control form-control-sm" id="ee_referral_max_input" style="width:90px" min="1"></div>' +
+'<button class="btn btn-outline-primary btn-sm" onclick="addReferralCodeFromUI()">＋ 追加</button>' +
+'</div>' +
+'<div class="form-text">紹介コードで応募した人の備考欄に、ここで設定した紹介者名が自動で記録されます。</div>' +
+'</div>' +
 '</div></div>' +
 '<div id="ee_online_fields" class="col-12" style="display:none">' +
 '<div class="row g-2">' +
@@ -1238,12 +1312,15 @@ function getDashboardHtml() {
 'if(e)e.stopPropagation();' +
 'var ev=eventsData[idx];' +
 'document.getElementById("editEventModal").dataset.appSheetName=ev.appSheetName;' +
+'document.getElementById("editEventModal").dataset.eventName=ev.name;' +
 'document.getElementById("ee_name").value=ev.name;' +
 'var isOnline=ev.eventType==="オンライン";' +
 'var isTournamentEv=ev.eventType==="大会";' +
 'document.getElementById("ee_offline_fields").style.display=isOnline?"none":"";' +
 'document.getElementById("ee_online_fields").style.display=isOnline?"":"none";' +
 'var eecf=document.getElementById("ee_capacity_field");if(eecf)eecf.style.display=isTournamentEv?"":"none";' +
+'var eerf=document.getElementById("ee_referral_field");if(eerf)eerf.style.display=isTournamentEv?"":"none";' +
+'if(isTournamentEv)loadReferralCodes(ev.name);' +
 'var eecoacf=document.getElementById("ee_coach_field");if(eecoacf)eecoacf.style.display=isTournamentEv?"none":"";' +
 'var eecap=document.getElementById("ee_capacity");if(eecap)eecap.value=ev.capacity||"";' +
 'document.getElementById("ee_date").value=ev.eventDateISO||"";' +
@@ -1273,6 +1350,53 @@ function getDashboardHtml() {
 'document.getElementById("editEventModal").scrollIntoView({behavior:"smooth"});' +
 '}' +
 'function hideEditEventModal(){document.getElementById("editEventModal").style.display="none";}' +
+'function loadReferralCodes(eventName){' +
+'var box=document.getElementById("ee_referral_list");' +
+'box.textContent="読み込み中...";' +
+'google.script.run' +
+'.withSuccessHandler(function(res){' +
+'if(!res.success){box.textContent="読み込み失敗: "+res.error;return;}' +
+'if(res.codes.length===0){box.innerHTML="<div class=\\"text-muted small\\">まだ紹介コードは登録されていません。</div>";return;}' +
+'box.innerHTML=res.codes.map(function(c){' +
+'var limitText=c.maxCount>0?(c.usedCount+"/"+c.maxCount+"名"):(c.usedCount+"名（上限なし）");' +
+'return "<div class=\\"d-flex justify-content-between align-items-center border rounded p-2 mb-1\\">"+' +
+'"<div><b>"+escHtml(c.code)+"</b>"+(c.referrerName?"（"+escHtml(c.referrerName)+"）":"")+" — "+limitText+"</div>"+' +
+'"<button class=\\"btn btn-sm btn-outline-danger\\" onclick=\\"deleteReferralCodeFromUI(\'"+escHtml(c.code)+"\')\\">削除</button>"+' +
+'"</div>";' +
+'}).join("");' +
+'})' +
+'.withFailureHandler(function(e){box.textContent="読み込み失敗: "+e.message;})' +
+'.getReferralCodesForEvent(eventName);' +
+'}' +
+'function addReferralCodeFromUI(){' +
+'var eventName=document.getElementById("editEventModal").dataset.eventName;' +
+'var code=document.getElementById("ee_referral_code_input").value.trim();' +
+'var name=document.getElementById("ee_referral_name_input").value.trim();' +
+'var max=document.getElementById("ee_referral_max_input").value;' +
+'if(!code){alert("コードを入力してください。");return;}' +
+'google.script.run' +
+'.withSuccessHandler(function(res){' +
+'if(res.success){' +
+'document.getElementById("ee_referral_code_input").value="";' +
+'document.getElementById("ee_referral_name_input").value="";' +
+'document.getElementById("ee_referral_max_input").value="";' +
+'loadReferralCodes(eventName);' +
+'}else{alert(res.error);}' +
+'})' +
+'.withFailureHandler(function(e){alert(e.message);})' +
+'.addReferralCode(eventName,code,name,max);' +
+'}' +
+'function deleteReferralCodeFromUI(code){' +
+'var eventName=document.getElementById("editEventModal").dataset.eventName;' +
+'if(!confirm("このコードを削除しますか？"))return;' +
+'google.script.run' +
+'.withSuccessHandler(function(res){' +
+'if(res.success)loadReferralCodes(eventName);' +
+'else alert(res.error);' +
+'})' +
+'.withFailureHandler(function(e){alert(e.message);})' +
+'.deleteReferralCode(eventName,code);' +
+'}' +
 'function submitEditEvent(){' +
 'var modal=document.getElementById("editEventModal");' +
 'var appSheetName=modal.dataset.appSheetName;' +
