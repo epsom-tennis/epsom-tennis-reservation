@@ -8,7 +8,8 @@ function doGet(e) {
   // LIFF向けJSON API（GitHub PagesのHTMLからfetch()で呼び出す）
   if (action === 'getEvents') {
     const userId = e && e.parameter && e.parameter.userId;
-    return liffApiResponse(getLiffEventsJson(userId));
+    const invite = e && e.parameter && e.parameter.invite;
+    return liffApiResponse(getLiffEventsJson(userId, invite));
   }
   if (action === 'getMember') {
     const userId = e && e.parameter && e.parameter.userId;
@@ -95,12 +96,14 @@ function liffApiResponse(data) {
 
 // LIFF向けイベント一覧を返す（応募開始日・締切日でフィルタ済み）
 // userIdが渡された場合はalreadyAppliedフラグも付与する
-function getLiffEventsJson(userId) {
+// accessCodeが渡された場合、限定公開イベントのうちコードが一致するものだけ通常一覧に含める
+function getLiffEventsJson(userId, accessCode) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const filtered = getAllEvents()
-      .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today));
+      .filter(ev => ev.status !== '停止' && (!ev.openingDate || ev.openingDate <= today) && (!ev.closingDate || ev.closingDate >= today))
+      .filter(ev => !ev.isRestricted || (accessCode && ev.restrictedCode && accessCode === ev.restrictedCode));
 
     // 応募済みシート名のセットを構築
     const appliedSheets = new Set();
@@ -122,13 +125,18 @@ function getLiffEventsJson(userId) {
 
     return filtered.map(ev => {
       const isTournament = ev.eventType === '大会';
+      // 先着受付終了日時を過ぎている場合は抽選待ち期間のため、満員系のバッジは出さない（人数上限を設けないため）
+      const isLotteryPhase = !!(ev.firstComeDeadlineAt && new Date() > ev.firstComeDeadlineAt);
       let capacityStatus = '';
-      if (isTournament && ev.capacity > 0) {
+      if (isTournament && ev.capacity > 0 && !isLotteryPhase) {
         const current = countTournamentParticipants_(ev.resultSheetName);
-        const remaining = ev.capacity - current;
+        // 紹介枠のコードを持つ人には紹介枠込みの定員で、一般の人には紹介枠を除いた定員で残り枠を判定する
+        const isReferralViewer = !!(ev.restrictedCode && accessCode && accessCode === ev.restrictedCode);
+        const effectiveCapacity = isReferralViewer ? ev.capacity : (ev.capacity - (ev.referralReserved || 0));
+        const remaining = effectiveCapacity - current;
         if (remaining <= 0) capacityStatus = 'full';
         else if (remaining === 1) capacityStatus = 'pair_closed';
-        else if (remaining / ev.capacity <= 0.50) capacityStatus = 'low';
+        else if (remaining / effectiveCapacity <= 0.50) capacityStatus = 'low';
         else capacityStatus = 'normal';
       }
       return {

@@ -176,7 +176,7 @@ window.addEventListener('load', function() {
       });
       return Promise.race([
         Promise.all([
-          fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }),
+          fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId) + '&invite=' + encodeURIComponent(getLiffUrlParam('invite') || '')).then(function(r){ return r.json(); }),
           fetch(GAS_URL + '?action=getMember&userId=' + encodeURIComponent(userId)).then(function(r){ return r.json(); }),
           fetch(GAS_URL + '?action=getTerms').then(function(r){ return r.json(); }).catch(function(){ return {}; })
         ]),
@@ -1281,6 +1281,7 @@ function doSubmit() {
       action: 'submitLiff',
       userId: userId,
       idToken: liff.getIDToken(),
+      accessCode: getLiffUrlParam('invite') || '',
       familyName: mainP.familyName, givenName: mainP.givenName,
       familyNameKana: mainP.familyNameKana, givenNameKana: mainP.givenNameKana,
       age: mainP.age, gender: mainP.gender, tennisLevel: mainP.tennisLevel,
@@ -1349,7 +1350,7 @@ function reApply() {
   participantCount = 1;
   profileAccordionOpen = false;
 
-  fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId))
+  fetch(GAS_URL + '?action=getEvents&userId=' + encodeURIComponent(userId) + '&invite=' + encodeURIComponent(getLiffUrlParam('invite') || ''))
     .then(function(r){ return r.json(); })
     .then(function(data) {
       eventsData = data || [];

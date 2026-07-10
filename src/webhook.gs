@@ -145,6 +145,8 @@ function handleOuboStatus(event) {
 
     const isOnline = (ev.eventType || 'オフライン') === 'オンライン';
     const isTournament = (ev.eventType || 'オフライン') === '大会';
+    // 先着受付終了日時を過ぎている場合は抽選待ち期間のため、満員系の表示は行わない
+    const isLotteryPhase = isTournament && !!(ev.firstComeDeadlineAt && new Date() > ev.firstComeDeadlineAt);
     let status = '';
 
     // 当落シートB列でUser IDを検索（LIFF応募・Google Form応募の両方が入る）
@@ -199,15 +201,17 @@ function handleOuboStatus(event) {
       }
     }
 
-    // 大会で未応募の場合：定員チェックを行い満員・残り枠少を先行表示する
-    if (!status && isTournament && ev.capacity > 0) {
+    // 大会で未応募の場合：定員チェックを行い満員・残り枠少を先行表示する（抽選期間中は人数上限を設けないため対象外）
+    if (!status && isTournament && ev.capacity > 0 && !isLotteryPhase) {
       const currentCount = countTournamentParticipants_(ev.resultSheetName);
-      const remaining = ev.capacity - currentCount;
+      // LINEのテキストメッセージ経由では紹介コードを判別できないため、一般枠（紹介枠を除いた定員）で判定する
+      const effectiveCapacity = ev.capacity - (ev.referralReserved || 0);
+      const remaining = effectiveCapacity - currentCount;
       if (remaining <= 0) {
         status = '満員（応募終了）';
       } else if (remaining === 1) {
         status = '残り1名（1人のみ応募可・ペアでの応募は終了しました）';
-      } else if (remaining / ev.capacity <= 0.50) {
+      } else if (remaining / effectiveCapacity <= 0.50) {
         // 残り枠少の場合は枠数は表示せず警告のみ
         if (ev.closingDateTimeAt) {
           const isOpen = ev.closingDateTimeAt >= new Date();
@@ -244,8 +248,8 @@ function handleOuboStatus(event) {
       }
     }
 
-    // オフラインのみ：応募済み（当落発表前）の場合、当落通知予定日があれば追記する
-    if (!isOnline && !isTournament && status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
+    // オフライン・抽選待ちの大会：応募済み（当落発表前）の場合、当落通知予定日があれば追記する
+    if (!isOnline && status === '応募済み（当落発表前）' && ev.resultAnnouncementDate) {
       const fmt = Utilities.formatDate(ev.resultAnnouncementDate, 'Asia/Tokyo', 'M月d日');
       status += `\n（当落は${fmt}頃にお知らせします）`;
     }

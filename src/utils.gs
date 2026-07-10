@@ -72,6 +72,22 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 27).getValue()) {
     sheet.getRange(1, 27).setValue('応募状況非表示');
   }
+  // AB列：限定公開フラグ（TRUEにするとLIFFの通常一覧から非表示になり、専用URL（?invite=）でのみ表示・応募できる）
+  if (!sheet.getRange(1, 28).getValue()) {
+    sheet.getRange(1, 28).setValue('限定公開');
+  }
+  // AC列：限定公開コード（専用URLの?invite=パラメータと一致した場合のみイベントを表示・応募可能にする。紹介枠の合言葉としても使う）
+  if (!sheet.getRange(1, 29).getValue()) {
+    sheet.getRange(1, 29).setValue('限定公開コード');
+  }
+  // AD列：紹介枠予約人数（大会専用。定員のうちこの人数分は、AC列のコードを持つ人にのみ確保する）
+  if (!sheet.getRange(1, 30).getValue()) {
+    sheet.getRange(1, 30).setValue('紹介枠予約人数');
+  }
+  // AE列：先着受付終了日時（大会専用。これ以降の応募は自動当選にせず抽選待ちとして保留し、人数の上限も設けない）
+  if (!sheet.getRange(1, 31).getValue()) {
+    sheet.getRange(1, 31).setValue('先着受付終了日時');
+  }
 }
 
 // 設定シートの全イベント行を返す（1行目はヘッダーのためスキップ）
@@ -112,6 +128,10 @@ function getAllEvents() {
     const isFreeEvent         = data[i][24] === true || String(data[i][24]).toUpperCase() === 'TRUE'; // Y列：無料イベントフラグ
     const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（大会専用。先着順の最大参加人数）
     const ouboStatusHidden    = data[i][26] === true || String(data[i][26]).toUpperCase() === 'TRUE'; // AA列：応募状況非表示フラグ
+    const isRestricted       = data[i][27] === true || String(data[i][27]).toUpperCase() === 'TRUE'; // AB列：限定公開フラグ
+    const restrictedCode     = String(data[i][28] || '').trim(); // AC列：限定公開コード（紹介枠の合言葉も兼ねる）
+    const referralReserved   = parseInt(data[i][29]) || 0; // AD列：紹介枠予約人数（大会専用）
+    const firstComeDeadlineAt = data[i][30] ? new Date(data[i][30]) : null; // AE列：先着受付終了日時（大会専用）
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
@@ -120,6 +140,7 @@ function getAllEvents() {
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
       closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
+      isRestricted, restrictedCode, referralReserved, firstComeDeadlineAt,
     });
   }
   return events;

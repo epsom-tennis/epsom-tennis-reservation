@@ -188,9 +188,24 @@ function submitLiffApplication(data) {
         }
         if (already && !isOnline) continue; // オンラインは常時募集のため重複応募を許可
 
-        // 大会：先着順チェック（定員はサーバー側のデータを使い、クライアント偽装を防ぐ）
-        if (isTournament) {
-          const serverEvForCap = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
+        // 限定公開イベント：一覧には出さなくても直接応募される可能性があるため、サーバー側でもコード一致を確認する
+        const serverEvForRestriction = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
+        if (serverEvForRestriction && serverEvForRestriction.isRestricted &&
+            (!data.accessCode || data.accessCode !== serverEvForRestriction.restrictedCode)) {
+          return { success: false, error: `「${ev.name}」は限定公開のイベントです。専用リンクからアクセスしてください。` };
+        }
+
+        // 紹介枠：応募コードが限定公開コードと一致するかどうか（紹介枠予約人数の判定・備考への印付けの両方で使う）
+        const isReferralEntry = !!(serverEvForRestriction && serverEvForRestriction.restrictedCode &&
+          data.accessCode && data.accessCode === serverEvForRestriction.restrictedCode);
+
+        // 大会：先着受付終了日時を過ぎている場合は抽選待ち。人数上限を設けず自動当選にもしない（後でスタッフが結果を確定し一括送信する）
+        const isLotteryPhase = isTournament && !!(serverEvForRestriction && serverEvForRestriction.firstComeDeadlineAt &&
+          new Date() > serverEvForRestriction.firstComeDeadlineAt);
+
+        // 大会：先着順チェック（定員はサーバー側のデータを使い、クライアント偽装を防ぐ。抽選期間中は対象外）
+        if (isTournament && !isLotteryPhase) {
+          const serverEvForCap = serverEvForRestriction;
           const capacity = (serverEvForCap && serverEvForCap.capacity) || 0;
           if (capacity > 0) {
             let currentCount = 0;
@@ -199,7 +214,10 @@ function submitLiffApplication(data) {
               currentCount += (form === 'ペア') ? 2 : 1;
             }
             const needed = (ev.participantForm === 'ペア') ? 2 : 1;
-            if (currentCount + needed > capacity) {
+            // 紹介枠：コード一致の応募のみ紹介枠込みの定員まで使える。一般の応募は紹介枠を除いた定員まで
+            const referralReserved = (serverEvForCap && serverEvForCap.referralReserved) || 0;
+            const effectiveCapacity = isReferralEntry ? capacity : (capacity - referralReserved);
+            if (currentCount + needed > effectiveCapacity) {
               return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
             }
           }
@@ -226,11 +244,12 @@ function submitLiffApplication(data) {
           ] : isTournament ? [
             ev.participantForm  || '',       // K: 参加形式（1人/ペア）
             ev.pairPartnerName  || '',       // L: ペア相手名
-            ev.freeText         || '',       // M: 備考
+            // 紹介枠経由の応募には、スタッフが一覧で分かるよう備考の先頭に印を付ける
+            (isReferralEntry ? '【紹介枠】' : '') + (ev.freeText || ''), // M: 備考
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
-        // 大会：先着順のため応募時点で当選確定・通知済みとして記録する
-        if (isTournament) {
+        // 大会：先着順のため応募時点で当選確定・通知済みとして記録する（抽選期間中は保留のまま。スタッフが結果を決めて一括送信する）
+        if (isTournament && !isLotteryPhase) {
           const newRow = resultSheet.getLastRow();
           resultSheet.getRange(newRow, 3).setValue('当選');   // C: 結果
           resultSheet.getRange(newRow, 4).setValue('済');     // D: 送信済み
