@@ -204,8 +204,9 @@ function handleOuboStatus(event) {
     // 大会で未応募の場合：定員チェックを行い満員・残り枠少を先行表示する（抽選期間中は人数上限を設けないため対象外）
     if (!status && isTournament && ev.capacity > 0 && !isLotteryPhase) {
       const currentCount = countTournamentParticipants_(ev.resultSheetName);
-      // 紹介コード・一般応募は同じ土俵の先着枠のため、大会全体の定員だけを見る（予約枠は設けない）
-      const effectiveCapacity = ev.capacity;
+      // LINEのテキストメッセージ経由では紹介コードを判別できないため、一般枠（未使用の招待枠×2を除いた枠）で判定する
+      const unusedInviteSlots = countUnusedReferralSlots_(ev.name, ev.resultSheetName);
+      const effectiveCapacity = ev.capacity - unusedInviteSlots * 2;
       const remaining = effectiveCapacity - currentCount;
       if (remaining <= 0) {
         status = '満員（応募終了）';

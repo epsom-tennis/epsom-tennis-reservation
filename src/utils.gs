@@ -79,6 +79,19 @@ function countReferralCodeUsage_(resultSheetName, code) {
   return count;
 }
 
+// 上限件数付きの紹介コードのうち、まだ使われていない枠の合計数を返す（上限なしのコードは含めない）
+// 一般応募が使える枠は、この「未使用の招待枠×2（ペアの可能性を考慮）」を定員から差し引いた分までとする
+function countUnusedReferralSlots_(eventName, resultSheetName) {
+  const codes = getReferralCodesForEvent_(eventName);
+  let unused = 0;
+  for (const c of codes) {
+    if (c.maxCount > 0) {
+      unused += Math.max(0, c.maxCount - countReferralCodeUsage_(resultSheetName, c.code));
+    }
+  }
+  return unused;
+}
+
 // 当落シートのN列（紹介コード）ヘッダーを補充する（旧・大会イベント用に後から追加した列のため）
 function ensureTournamentReferralColumn_(resultSheet) {
   if (!resultSheet.getRange(1, 14).getValue()) {
