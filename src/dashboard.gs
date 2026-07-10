@@ -1366,7 +1366,7 @@ function getDashboardHtml() {
 'if(res.codes.length===0){box.innerHTML="<div class=\\"text-muted small\\">まだ紹介コードは登録されていません。</div>";return;}' +
 'box.innerHTML=res.codes.map(function(c){' +
 'var limitText=c.maxCount>0?(c.usedCount+"/"+c.maxCount+"件"):(c.usedCount+"件（上限なし）");' +
-'var url=res.liffId?("https://liff.line.me/"+res.liffId+"?invite="+encodeURIComponent(c.code)):"";' +
+'var url=res.liffId?("https://liff.line.me/"+res.liffId+"?invite="+encodeURIComponent(c.code)+"&event="+encodeURIComponent(eventName)):"";' +
 'var urlRow=url?("<div class=\\"d-flex align-items-center gap-2 mt-1\\"><input type=\\"text\\" class=\\"form-control form-control-sm\\" readonly onclick=\\"this.select()\\" value=\\""+escHtml(url)+"\\">"+' +
 '"<button class=\\"btn btn-sm btn-outline-secondary\\" onclick=\\"copyReferralUrl(this,\'"+escHtml(url)+"\')\\">コピー</button></div>"):"";' +
 'return "<div class=\\"border rounded p-2 mb-1\\">"+' +
