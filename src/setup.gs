@@ -98,7 +98,7 @@ function createNewEvent(data) {
     const {
       name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl, eventType,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden, isFirstCome,
     } = data;
     const isOnline = (eventType || 'オフライン') === 'オンライン';
     const isTournament = (eventType || 'オフライン') === '大会';
@@ -183,6 +183,8 @@ function createNewEvent(data) {
     ]);
     // R列（参加費）は「3900円/1人」等の数字混じりテキストがSheetsに数値・通貨として自動変換されてしまうため、テキスト形式に固定して書き直す
     configSheet.getRange(configSheet.getLastRow(), 18).setNumberFormat('@').setValue(fee || '');
+    // AF列：先着順にする（オフライン・オンライン専用。大会は常に先着順のため未設定のままでよい）
+    configSheet.getRange(configSheet.getLastRow(), 32).setValue(isFirstCome === true || isFirstCome === 'true');
 
     return {
       success: true,
@@ -337,7 +339,7 @@ function updateEventDetails(data) {
   try {
     const { appSheetName, name, eventDate, closingDate, openingDate, eventTime, venue, coachName, description, channelUrl,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
-      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden, firstComeDeadlineAt } = data;
+      closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden, firstComeDeadlineAt, isFirstCome } = data;
     if (!appSheetName) return { success: false, error: 'appSheetNameは必須です。' };
 
     const ss = SpreadsheetApp.openById(getProp('SPREADSHEET_ID'));
@@ -379,9 +381,10 @@ function updateEventDetails(data) {
     configSheet.getRange(rowIdx, 23).setValue(toDateOrBlank(closingDateTimeAt));
     configSheet.getRange(rowIdx, 24).setValue(toDateOrBlank(resultAnnouncementDate));
     configSheet.getRange(rowIdx, 25).setValue(isFreeEvent === true || isFreeEvent === 'true');
-    configSheet.getRange(rowIdx, 26).setValue(parseInt(capacity) || '');  // Z列：定員（大会イベント専用）
+    configSheet.getRange(rowIdx, 26).setValue(parseInt(capacity) || '');  // Z列：定員（先着順イベント専用）
     configSheet.getRange(rowIdx, 27).setValue(ouboStatusHidden === true || ouboStatusHidden === 'true'); // AA列：応募状況非表示フラグ
     configSheet.getRange(rowIdx, 31).setValue(toDateOrBlank(firstComeDeadlineAt)); // AE列：先着受付終了日時（大会専用）
+    configSheet.getRange(rowIdx, 32).setValue(isFirstCome === true || isFirstCome === 'true'); // AF列：先着順にする（オフライン・オンライン専用）
 
     return { success: true };
   } catch (err) {

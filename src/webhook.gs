@@ -157,8 +157,8 @@ function handleOuboStatus(event) {
         if (String(resultData[i][1]) === userId) {
           const result = String(resultData[i][2] || '');
           if (result === '当選') {
-            if (isTournament) {
-              // 大会は先着順で即確定のため「参加確定」と表示する
+            if (isTournament || ev.isFirstCome) {
+              // 先着順イベントは応募時点で即確定のため「参加確定」と表示する
               status = '応募済み（参加確定）✅';
             } else {
               const conf = String(resultData[i][9] || '');
@@ -201,16 +201,23 @@ function handleOuboStatus(event) {
       }
     }
 
-    // 大会で未応募の場合：定員チェックを行い満員・残り枠少を先行表示する（抽選期間中は人数上限を設けないため対象外）
-    if (!status && isTournament && ev.capacity > 0 && !isLotteryPhase) {
-      const currentCount = countTournamentParticipants_(ev.resultSheetName);
-      // LINEのテキストメッセージ経由では紹介コードを判別できないため、一般枠（未使用の招待枠×2を除いた枠）で判定する
-      const unusedInviteSlots = countUnusedReferralSlots_(ev.name, ev.resultSheetName);
-      const effectiveCapacity = ev.capacity - unusedInviteSlots * 2;
+    // 先着順イベントで未応募の場合：定員チェックを行い満員・残り枠少を先行表示する（大会の抽選期間中は人数上限を設けないため対象外）
+    if (!status && ev.isFirstCome && ev.capacity > 0 && !isLotteryPhase) {
+      let currentCount, effectiveCapacity;
+      if (isTournament) {
+        currentCount = countTournamentParticipants_(ev.resultSheetName);
+        // LINEのテキストメッセージ経由では紹介コードを判別できないため、一般枠（未使用の招待枠×2を除いた枠）で判定する
+        const unusedInviteSlots = countUnusedReferralSlots_(ev.name, ev.resultSheetName);
+        effectiveCapacity = ev.capacity - unusedInviteSlots * 2;
+      } else {
+        // オフライン・オンライン：参加者ごとに1行なので、そのまま行数で数える
+        currentCount = Math.max(0, getCachedSheetData_(ev.resultSheetName).length - 1);
+        effectiveCapacity = ev.capacity;
+      }
       const remaining = effectiveCapacity - currentCount;
       if (remaining <= 0) {
         status = '満員（応募終了）';
-      } else if (remaining === 1) {
+      } else if (isTournament && remaining === 1) {
         status = '残り1名（1人のみ応募可・ペアでの応募は終了しました）';
       } else if (remaining / effectiveCapacity <= 0.50) {
         // 残り枠少の場合は枠数は表示せず警告のみ

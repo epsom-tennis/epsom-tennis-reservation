@@ -111,6 +111,7 @@ function submitLiffApplication(data) {
     const appliedOfflineEventDates  = []; // appliedOfflineNamesと並行：開催日(Date or null)
     const appliedTournamentNames      = []; // 大会：先着順で確定したイベント名
     const appliedTournamentEventDates = []; // 大会：開催日(Date or null)
+    const appliedOfflineFirstComeNames = []; // オフライン・オンライン：先着順設定により確定したイベント名
     const appliedParticipantNames = []; // 新規応募した参加者のフルネーム
 
     // 主参加者 + 追加参加者をまとめて処理
@@ -197,36 +198,49 @@ function submitLiffApplication(data) {
         }
         const isReferralEntry = !!referralMatch;
 
+        // 先着順イベントかどうか（大会は常に先着順。オフライン・オンラインは「先着順にする」設定時のみ）
+        const isFirstCome = isTournament || !!(serverEvForRestriction && serverEvForRestriction.isFirstCome);
+
         // 大会：先着受付終了日時を過ぎている場合は抽選待ち。人数上限を設けず自動当選にもしない（後でスタッフが結果を確定し一括送信する）
         const isLotteryPhase = isTournament && !!(serverEvForRestriction && serverEvForRestriction.firstComeDeadlineAt &&
           new Date() > serverEvForRestriction.firstComeDeadlineAt);
 
-        // 大会：先着順チェック（定員はサーバー側のデータを使い、クライアント偽装を防ぐ。抽選期間中は対象外）
-        if (isTournament && !isLotteryPhase) {
+        // 先着順チェック（定員はサーバー側のデータを使い、クライアント偽装を防ぐ。大会の抽選期間中は対象外）
+        if (isFirstCome && !isLotteryPhase) {
           const serverEvForCap = serverEvForRestriction;
           const capacity = (serverEvForCap && serverEvForCap.capacity) || 0;
           if (capacity > 0) {
             let currentCount = 0;
-            for (let j = 1; j < resultData.length; j++) {
-              const form = String(resultData[j][10] || ''); // K列：参加形式
-              currentCount += (form === 'ペア') ? 2 : 1;
+            let needed = 1;
+            if (isTournament) {
+              // 大会：参加形式（1人/ペア）で人数を重み付けする
+              for (let j = 1; j < resultData.length; j++) {
+                const form = String(resultData[j][10] || ''); // K列：参加形式
+                currentCount += (form === 'ペア') ? 2 : 1;
+              }
+              needed = (ev.participantForm === 'ペア') ? 2 : 1;
+            } else {
+              // オフライン・オンライン：参加者ごとに1行なので単純に行数で数える
+              currentCount = resultData.length - 1;
+              needed = 1;
             }
-            const needed = (ev.participantForm === 'ペア') ? 2 : 1;
-            // 大会全体の定員は、紹介コード・一般応募を問わず常に守る
+            // 定員は、紹介コード・一般応募を問わず常に守る
             if (currentCount + needed > capacity) {
               return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
             }
-            if (referralMatch && referralMatch.maxCount > 0) {
-              // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」でカウントする
-              const codeUsed = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
-              if (codeUsed + 1 > referralMatch.maxCount) {
-                return { success: false, error: `「${ev.name}」のこちらのご紹介枠は上限に達しているため応募できません。` };
-              }
-            } else if (!referralMatch) {
-              // 一般の応募：未使用の招待枠（残り件数×2）を確保しておき、それを除いた分までしか使えない
-              const unusedInviteSlots = countUnusedReferralSlots_(ev.name, ev.resultSheetName);
-              if (currentCount + needed > capacity - unusedInviteSlots * 2) {
-                return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
+            if (isTournament) {
+              if (referralMatch && referralMatch.maxCount > 0) {
+                // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」でカウントする
+                const codeUsed = countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
+                if (codeUsed + 1 > referralMatch.maxCount) {
+                  return { success: false, error: `「${ev.name}」のこちらのご紹介枠は上限に達しているため応募できません。` };
+                }
+              } else if (!referralMatch) {
+                // 一般の応募：未使用の招待枠（残り件数×2）を確保しておき、それを除いた分までしか使えない
+                const unusedInviteSlots = countUnusedReferralSlots_(ev.name, ev.resultSheetName);
+                if (currentCount + needed > capacity - unusedInviteSlots * 2) {
+                  return { success: false, error: `「${ev.name}」は定員に達しているため応募できません。` };
+                }
               }
             }
           }
@@ -259,8 +273,8 @@ function submitLiffApplication(data) {
           ] : [data.shootingConsent || ''])  // K: 撮影可否（オフライン有料イベントのみ入力）
         );
         if (isTournament) ensureTournamentReferralColumn_(resultSheet); // 旧イベントにN列ヘッダーが無い場合に補充する
-        // 大会：先着順のため応募時点で当選確定・通知済みとして記録する（抽選期間中は保留のまま。スタッフが結果を決めて一括送信する）
-        if (isTournament && !isLotteryPhase) {
+        // 先着順のため応募時点で当選確定・通知済みとして記録する（大会の抽選期間中は保留のまま。スタッフが結果を決めて一括送信する）
+        if (isFirstCome && !isLotteryPhase) {
           const newRow = resultSheet.getLastRow();
           resultSheet.getRange(newRow, 3).setValue('当選');   // C: 結果
           resultSheet.getRange(newRow, 4).setValue('済');     // D: 送信済み
@@ -280,6 +294,9 @@ function submitLiffApplication(data) {
             const serverEvT = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
             appliedTournamentNames.push(ev.name);
             appliedTournamentEventDates.push(serverEvT ? (serverEvT.eventDate || null) : null);
+          } else if (isFirstCome) {
+            // 先着順にする設定のオフラインイベント：応募時点で参加確定済み（大会と同じ扱い）
+            appliedOfflineFirstComeNames.push(ev.name);
           } else {
             // 開催日・当落発表日はクライアントデータには含まれないためサーバー側から取得する
             const serverEv = allServerEvents.find(function(e) { return e.resultSheetName === ev.resultSheetName; });
@@ -316,6 +333,13 @@ function submitLiffApplication(data) {
             const dateLine = d instanceof Date ? Utilities.formatDate(d, 'Asia/Tokyo', 'M月d日') + '開催\n' : '';
             return dateLine + '・' + name;
           }).join('\n\n'),
+        }));
+      }
+
+      // オフライン・オンライン：先着順設定により参加確定
+      if (appliedOfflineFirstComeNames.length > 0) {
+        msgParts.push(renderTemplate_(getMsgTemplate_('offline_firstcome_apply'), {
+          events: appliedOfflineFirstComeNames.map(name => '・' + name).join('\n\n'),
         }));
       }
 

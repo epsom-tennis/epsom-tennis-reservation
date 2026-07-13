@@ -151,7 +151,7 @@ function ensureEventDetailColumns_(sheet) {
   if (!sheet.getRange(1, 25).getValue()) {
     sheet.getRange(1, 25).setValue('無料イベント');
   }
-  // Z列：定員（大会イベント専用。先着順の最大参加人数）
+  // Z列：定員（先着順イベント専用。大会は常に先着順、オフライン・オンラインはAF列がTRUEの場合のみ先着順として使う）
   if (!sheet.getRange(1, 26).getValue()) {
     sheet.getRange(1, 26).setValue('定員');
   }
@@ -167,6 +167,10 @@ function ensureEventDetailColumns_(sheet) {
   // AE列：先着受付終了日時（大会専用。これ以降の応募は自動当選にせず抽選待ちとして保留し、人数の上限も設けない）
   if (!sheet.getRange(1, 31).getValue()) {
     sheet.getRange(1, 31).setValue('先着受付終了日時');
+  }
+  // AF列：先着順にする（オフライン・オンライン専用。TRUEにすると大会と同様、定員に空きがあれば応募時点で自動的に参加確定になる。大会は常に先着順のためこの列は見ない）
+  if (!sheet.getRange(1, 32).getValue()) {
+    sheet.getRange(1, 32).setValue('先着順にする');
   }
 }
 
@@ -207,10 +211,14 @@ function getAllEvents() {
     const closingDateTimeAt   = data[i][22] ? new Date(data[i][22]) : null; // W列：募集締め切り日時（時刻込み）
     const resultAnnouncementDate = data[i][23] ? new Date(data[i][23]) : null; // X列：当落通知予定日
     const isFreeEvent         = data[i][24] === true || String(data[i][24]).toUpperCase() === 'TRUE'; // Y列：無料イベントフラグ
-    const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（大会専用。先着順の最大参加人数）
+    const capacity            = parseInt(data[i][25]) || 0; // Z列：定員（先着順イベント専用）
     const ouboStatusHidden    = data[i][26] === true || String(data[i][26]).toUpperCase() === 'TRUE'; // AA列：応募状況非表示フラグ
     const isRestricted       = data[i][27] === true || String(data[i][27]).toUpperCase() === 'TRUE'; // AB列：限定公開フラグ
     const firstComeDeadlineAt = data[i][30] ? new Date(data[i][30]) : null; // AE列：先着受付終了日時（大会専用）
+    const eventTypeForFirstCome = String(data[i][11] || 'オフライン').trim();
+    // 大会は常に先着順。オフライン・オンラインはAF列がTRUEの場合のみ先着順にする
+    const isFirstCome = eventTypeForFirstCome === '大会' ||
+      data[i][31] === true || String(data[i][31]).toUpperCase() === 'TRUE'; // AF列：先着順にする
     const resultSheetName = appSheetName
       ? appSheetName.replace('_応募', '_当落')
       : name.replace(/[/?\*[\]:\\]/g, '').replace(/\s/g, '') + '_当落';
@@ -219,7 +227,7 @@ function getAllEvents() {
       eventTime, venue, coachName, description, eventType, channelUrl, status,
       meetingTime, courtType, items, fee, lockerInfo, facilityUrl, confirmDeadline, confirmDeadlineAt,
       closingDateTimeAt, resultAnnouncementDate, isFreeEvent, capacity, ouboStatusHidden,
-      isRestricted, firstComeDeadlineAt,
+      isRestricted, firstComeDeadlineAt, isFirstCome,
     });
   }
   return events;
