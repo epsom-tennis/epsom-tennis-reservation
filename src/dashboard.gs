@@ -126,10 +126,11 @@ function getLiffEventsJson(userId, accessCode) {
       const isTournament = ev.eventType === '大会';
       // 先着受付終了日時を過ぎている場合は抽選待ち期間のため、満員系のバッジは出さない（人数上限を設けないため。大会専用）
       const isLotteryPhase = !!(ev.firstComeDeadlineAt && new Date() > ev.firstComeDeadlineAt);
+      const referralMatch = (isTournament && accessCode) ? findReferralCode_(ev.name, accessCode) : null;
+      // 紹介コードを持つ人には抽選期間に入っても先着枠の状況を見せる。一般の人には抽選期間中はバッジを出さない
       let capacityStatus = '';
-      if (ev.isFirstCome && ev.capacity > 0 && !isLotteryPhase) {
+      if (ev.isFirstCome && ev.capacity > 0 && (!isLotteryPhase || !!referralMatch)) {
         if (isTournament) {
-          const referralMatch = accessCode ? findReferralCode_(ev.name, accessCode) : null;
           if (referralMatch && referralMatch.maxCount > 0) {
             // 上限件数付きの紹介コード：人数ではなく「1人でもペアでも1応募＝1件」の残り件数で判定する（ペア枠終了の概念は無い）
             const remaining = referralMatch.maxCount - countReferralCodeUsage_(ev.resultSheetName, referralMatch.code);
