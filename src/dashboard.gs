@@ -447,41 +447,59 @@ function sendResultsFromDashboard(resultSheetName) {
   return { success: true, winCount, loseCount };
 }
 
-// ステータスで絞り込んだUser IDリストを返す
-function getFilteredUsers(appSheetName, resultSheetName, status) {
+// 会員属性（性別・年齢・レベル）と、複数のイベント条件（すべて満たす＝AND）で絞り込んだ対象者一覧を返す
+// eventConditions: [{ appSheetName, resultSheetName, condition }]  condition: '当選'|'落選'|'応募済み'|'未応募'
+function getAdvancedFilteredUsers(memberFilters, eventConditions) {
   const membersSheet = getSheet(SHEET.MEMBERS);
   if (!membersSheet || membersSheet.getLastRow() <= 1) return [];
 
-  // 応募済みUser IDのセット・当落ステータスのマップを構築
-  // 当落シートを基準にする（Google FormとLIFF両方の応募がここに集約される）
-  const submittedSet = new Set();
-  const resultMap = {};
-  const resultSheet = getSheet(resultSheetName);
-  if (resultSheet && resultSheet.getLastRow() > 1) {
-    const resultData = resultSheet.getDataRange().getValues();
-    for (let i = 1; i < resultData.length; i++) {
-      const userId = String(resultData[i][1] || '');
-      if (!userId) continue;
-      submittedSet.add(userId);
-      resultMap[userId] = String(resultData[i][2] || '');
+  // イベント条件ごとに、応募済みUser IDのセット・当落ステータスのマップを構築しておく
+  // （当落シートを基準にする。Google FormとLIFF両方の応募がここに集約される）
+  const conditionMaps = (eventConditions || []).map(cond => {
+    const submittedSet = new Set();
+    const resultMap = {};
+    const resultSheet = getSheet(cond.resultSheetName);
+    if (resultSheet && resultSheet.getLastRow() > 1) {
+      const resultData = resultSheet.getDataRange().getValues();
+      for (let i = 1; i < resultData.length; i++) {
+        const userId = String(resultData[i][1] || '');
+        if (!userId) continue;
+        submittedSet.add(userId);
+        resultMap[userId] = String(resultData[i][2] || '');
+      }
     }
-  }
+    return { condition: cond.condition, submittedSet, resultMap };
+  });
 
   const membersData = membersSheet.getDataRange().getValues();
   const result = [];
   for (let i = 1; i < membersData.length; i++) {
     const userId = String(membersData[i][1]);
-    const name = String(membersData[i][4] || membersData[i][2] || '（名前未取得）'); // E列（名前）優先、なければ受付コード
-    const userResult = resultMap[userId] || '';
-    const isSubmitted = submittedSet.has(userId);
+    if (!userId) continue;
+    const name   = String(membersData[i][4] || membersData[i][2] || '（名前未取得）'); // E列（名前）優先、なければ受付コード
+    const age    = parseInt(membersData[i][6]) || 0;    // G列：年齢
+    const gender = String(membersData[i][7] || '');     // H列：性別
+    const level  = String(membersData[i][8] || '');     // I列：テニスレベル
 
-    let match = false;
-    if (status === '当選' && userResult === '当選') match = true;
-    else if (status === '落選' && userResult === '落選') match = true;
-    else if (status === '応募済み' && isSubmitted && !userResult) match = true;
-    else if (status === '未応募' && !isSubmitted) match = true;
+    if (memberFilters) {
+      if (memberFilters.gender && gender !== memberFilters.gender) continue;
+      if (memberFilters.ageMin && age > 0 && age < memberFilters.ageMin) continue;
+      if (memberFilters.ageMax && age > 0 && age > memberFilters.ageMax) continue;
+      if (memberFilters.level && level !== memberFilters.level) continue;
+    }
 
-    if (match) result.push({ name, userId });
+    const matchesAll = conditionMaps.every(cm => {
+      const isSubmitted = cm.submittedSet.has(userId);
+      const userResult = cm.resultMap[userId] || '';
+      if (cm.condition === '当選') return userResult === '当選';
+      if (cm.condition === '落選') return userResult === '落選';
+      if (cm.condition === '応募済み') return isSubmitted && !userResult;
+      if (cm.condition === '未応募') return !isSubmitted;
+      return true;
+    });
+    if (!matchesAll) continue;
+
+    result.push({ name, userId });
   }
   return result;
 }
@@ -1107,21 +1125,23 @@ function getDashboardHtml() {
 '<div class="row g-3">' +
 '<div class="col-md-4">' +
 '<div class="card p-3">' +
-'<div class="mb-2">' +
-'<label class="form-label fw-bold">対象イベント</label>' +
-'<select class="form-select" id="bcastEvent"><option value="">（選択してください）</option></select>' +
-'</div>' +
-'<div class="mb-2">' +
-'<label class="form-label fw-bold">ステータスで絞り込み</label>' +
-'<select class="form-select" id="bcastStatus">' +
-'<option value="未応募">未応募</option>' +
-'<option value="応募済み">応募済み</option>' +
-'<option value="当選">当選</option>' +
-'<option value="落選">落選</option>' +
-'</select>' +
-'</div>' +
+'<div class="mb-2"><label class="form-label fw-bold">性別</label>' +
+'<select class="form-select form-select-sm" id="bcFilterGender"><option value="">全員</option><option value="男性">男性</option><option value="女性">女性</option></select></div>' +
+'<div class="mb-2"><label class="form-label fw-bold">年齢</label>' +
+'<div class="d-flex align-items-center gap-1">' +
+'<input type="number" class="form-control form-control-sm" id="bcFilterAgeMin" placeholder="下限" min="0">' +
+'<span class="px-1">〜</span>' +
+'<input type="number" class="form-control form-control-sm" id="bcFilterAgeMax" placeholder="上限" min="0">' +
+'</div></div>' +
+'<div class="mb-2"><label class="form-label fw-bold">テニスレベル</label>' +
+'<select class="form-select form-select-sm" id="bcFilterLevel"><option value="">全員</option></select></div>' +
+'<hr>' +
+'<label class="form-label fw-bold">イベント条件<span class="text-muted small fw-normal ms-1">（すべて満たす人が対象）</span></label>' +
+'<div id="bcEventConditions" class="mb-2"></div>' +
+'<button class="btn btn-sm btn-outline-secondary w-100 mb-2" onclick="addBcEventCondition()">＋ イベント条件を追加</button>' +
+'<hr>' +
 '<button class="btn btn-outline-primary w-100 mb-2" onclick="loadBcastUsers()">対象者を確認</button>' +
-'<div id="bcastUserList" class="border rounded p-2 bg-white" style="min-height:60px;max-height:200px;overflow-y:auto;font-size:12px;"></div>' +
+'<div id="bcastUserList" class="border rounded p-2 bg-white" style="min-height:60px;max-height:280px;overflow-y:auto;font-size:12px;"></div>' +
 '</div>' +
 '</div>' +
 '<div class="col-md-8">' +
@@ -1129,7 +1149,7 @@ function getDashboardHtml() {
 '<label class="form-label fw-bold">メッセージ</label>' +
 '<textarea class="form-control mb-2" id="bcastMessage" rows="10" placeholder="送信するメッセージを入力してください"></textarea>' +
 '<div class="d-flex align-items-center gap-2">' +
-'<button class="btn btn-primary" onclick="execBroadcast()">📢 送信する</button>' +
+'<button class="btn btn-primary" onclick="execBroadcast()">📢 チェックした人に送信する</button>' +
 '<span id="bcastResult" class="text-muted small"></span>' +
 '</div>' +
 '</div>' +
@@ -1242,7 +1262,7 @@ function getDashboardHtml() {
 '<script>' +
 'var eventsData=[];' +
 'var currentEvent=null;' +
-'var bcastUserIds=[];' +
+'var bcastCandidates=[];' +
 'var membersData=[];' +
 'var mTargetIds=[];' +
 'var membersLoaded=false;' +
@@ -1499,7 +1519,7 @@ function getDashboardHtml() {
 'document.getElementById("tab-"+n).style.display=t===n?"":"none";' +
 'document.getElementById("tab-btn-"+n).classList.toggle("active",t===n);' +
 '});' +
-'if(t==="members"&&!membersLoaded){membersLoaded=true;loadMembers();}' +
+'if((t==="members"||t==="broadcast")&&!membersLoaded){membersLoaded=true;loadMembers();}' +
 'if(t==="messages"&&!messagesLoaded){messagesLoaded=true;loadMessageTemplates();}' +
 'if(t==="terms"&&!termsLoaded){termsLoaded=true;loadTerms();}' +
 '}' +
@@ -1518,8 +1538,6 @@ function getDashboardHtml() {
 'eventsData=events;' +
 'var el=document.getElementById("eventList");' +
 'el.innerHTML="";' +
-'var sel=document.getElementById("bcastEvent");' +
-'sel.innerHTML="<option value=\'\'>（選択してください）</option>";' +
 'if(!events||events.length===0){el.innerHTML="<div class=\'col\'><p class=\'text-muted\'>設定シートにイベントがありません。</p></div>";return;}' +
 'events.forEach(function(ev,idx){' +
 'var badge=ev.pendingCount>0?"<span class=\'badge badge-pending ms-1\'>"+ev.pendingCount+"件未送信</span>":"";' +
@@ -1543,8 +1561,6 @@ function getDashboardHtml() {
 'btns+' +
 '"</div></div>";' +
 'el.appendChild(div);' +
-'var opt=document.createElement("option");' +
-'opt.value=idx;opt.textContent=ev.name;sel.appendChild(opt);' +
 '});' +
 '}' +
 
@@ -2064,34 +2080,60 @@ function getDashboardHtml() {
 '.sendResultsFromDashboard(currentEvent.resultSheetName);' +
 '}' +
 
+'function buildBcEventOptionsHtml(){' +
+'return eventsData.map(function(ev,idx){return "<option value=\'"+idx+"\'>"+ev.name+"</option>";}).join("");' +
+'}' +
+'function addBcEventCondition(){' +
+'var container=document.getElementById("bcEventConditions");' +
+'var row=document.createElement("div");' +
+'row.className="d-flex gap-1 mb-1 bc-cond-row";' +
+'row.innerHTML="<select class=\'form-select form-select-sm bc-cond-event\'>"+buildBcEventOptionsHtml()+"</select>"+' +
+'"<select class=\'form-select form-select-sm bc-cond-status\' style=\'max-width:100px\'>"+' +
+'"<option value=\'応募済み\'>応募済み</option><option value=\'未応募\'>未応募</option><option value=\'当選\'>当選</option><option value=\'落選\'>落選</option>"+' +
+'"</select>"+' +
+'"<button class=\'btn btn-sm btn-outline-danger\' onclick=\'this.parentElement.remove()\'>×</button>";' +
+'container.appendChild(row);' +
+'}' +
 'function loadBcastUsers(){' +
-'var idxVal=document.getElementById("bcastEvent").value;' +
-'var status=document.getElementById("bcastStatus").value;' +
-'if(!idxVal){alert("イベントを選択してください。");return;}' +
-'var ev=eventsData[parseInt(idxVal)];' +
+'var memberFilters={' +
+'gender:document.getElementById("bcFilterGender").value,' +
+'ageMin:parseInt(document.getElementById("bcFilterAgeMin").value)||0,' +
+'ageMax:parseInt(document.getElementById("bcFilterAgeMax").value)||0,' +
+'level:document.getElementById("bcFilterLevel").value' +
+'};' +
+'var eventConditions=Array.from(document.querySelectorAll("#bcEventConditions .bc-cond-row")).map(function(row){' +
+'var idx=parseInt(row.querySelector(".bc-cond-event").value);' +
+'var ev=eventsData[idx];' +
+'return {appSheetName:ev.appSheetName,resultSheetName:ev.resultSheetName,condition:row.querySelector(".bc-cond-status").value};' +
+'});' +
 'spin(true);' +
 'google.script.run' +
 '.withSuccessHandler(function(users){' +
-'spin(false);bcastUserIds=users.map(function(u){return u.userId;});' +
+'spin(false);bcastCandidates=users;' +
 'var listEl=document.getElementById("bcastUserList");' +
-'if(!users||users.length===0){listEl.textContent="対象者がいません。";}' +
-'else{listEl.innerHTML="<div class=\'fw-bold mb-1\'>"+users.length+"名</div>"+users.map(function(u){return "<div>"+u.name+"</div>";}).join("");}' +
+'if(!users||users.length===0){listEl.textContent="対象者がいません。";return;}' +
+'listEl.innerHTML="<div class=\'fw-bold mb-1\'>"+users.length+"名</div>"+users.map(function(u,i){' +
+'return "<label class=\'d-block\'><input type=\'checkbox\' class=\'bc-user-check\' data-idx=\'"+i+"\' checked> "+escHtml(u.name)+"</label>";' +
+'}).join("");' +
 '})' +
 '.withFailureHandler(function(e){spin(false);alert("エラー: "+e.message);})' +
-'.getFilteredUsers(ev.appSheetName,ev.resultSheetName,status);' +
+'.getAdvancedFilteredUsers(memberFilters,eventConditions);' +
 '}' +
 
 'function execBroadcast(){' +
 'var message=document.getElementById("bcastMessage").value.trim();' +
 'if(!message){alert("メッセージを入力してください。");return;}' +
-'if(bcastUserIds.length===0){alert("先に「対象者を確認」ボタンを押してください。");return;}' +
-'if(!confirm(bcastUserIds.length+"名にメッセージを送信します。よろしいですか？"))return;' +
+'if(!bcastCandidates||bcastCandidates.length===0){alert("先に「対象者を確認」ボタンを押してください。");return;}' +
+'var checked=Array.from(document.querySelectorAll(".bc-user-check:checked"));' +
+'var userIds=checked.map(function(cb){return bcastCandidates[parseInt(cb.dataset.idx)].userId;});' +
+'if(userIds.length===0){alert("送信先を1人以上選択してください。");return;}' +
+'if(!confirm(userIds.length+"名にメッセージを送信します。よろしいですか？"))return;' +
 'spin(true);' +
 'var resultEl=document.getElementById("bcastResult");resultEl.textContent="";' +
 'google.script.run' +
-'.withSuccessHandler(function(res){spin(false);if(res.success){resultEl.textContent="✅ "+res.count+"名に送信しました";document.getElementById("bcastMessage").value="";bcastUserIds=[];document.getElementById("bcastUserList").innerHTML="";}else{alert("エラー: "+res.error);}})' +
+'.withSuccessHandler(function(res){spin(false);if(res.success){resultEl.textContent="✅ "+res.count+"名に送信しました";document.getElementById("bcastMessage").value="";bcastCandidates=[];document.getElementById("bcastUserList").innerHTML="";}else{alert("エラー: "+res.error);}})' +
 '.withFailureHandler(function(e){spin(false);alert("エラー: "+e.message);})' +
-'.sendBroadcast(bcastUserIds,message);' +
+'.sendBroadcast(userIds,message);' +
 '}' +
 
 'function loadMembers(){' +
@@ -2105,8 +2147,9 @@ function getDashboardHtml() {
 'function initMembersTab(data){' +
 'membersData=data;' +
 'var levels=[...new Set(data.map(function(m){return m.tennisLevel;}).filter(function(v){return v;}))].sort();' +
-'var sel=document.getElementById("mFilterLevel");' +
-'sel.innerHTML="<option value=\'\'>全員</option>"+levels.map(function(l){return"<option value=\'"+l+"\'>"+l+"</option>";}).join("");' +
+'var levelOptsHtml="<option value=\'\'>全員</option>"+levels.map(function(l){return"<option value=\'"+l+"\'>"+l+"</option>";}).join("");' +
+'document.getElementById("mFilterLevel").innerHTML=levelOptsHtml;' +
+'var bcLevelSel=document.getElementById("bcFilterLevel");if(bcLevelSel)bcLevelSel.innerHTML=levelOptsHtml;' +
 'renderMembersTable(data);' +
 '}' +
 
