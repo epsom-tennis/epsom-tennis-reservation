@@ -156,6 +156,9 @@ function getLiffEventsJson(userId, accessCode) {
           else if (remaining / ev.capacity <= 0.50) capacityStatus = 'low';
           else capacityStatus = 'normal';
         }
+      } else if (ev.isFirstCome && ev.capacity > 0 && isLotteryPhase && !referralMatch) {
+        // 抽選待ち期間に入った一般向け表示：残り枠は見せず「抽選」であることを明示する
+        capacityStatus = 'lottery';
       }
       return {
         name:            ev.name,
@@ -1031,8 +1034,12 @@ function getDashboardHtml() {
 '<div class="col-12"><label class="form-label fw-bold">施設URL</label><input type="url" class="form-control" id="ee_facility_url"></div>' +
 '<div id="ee_first_come_deadline_field" class="col-6" style="display:none">' +
 '<label class="form-label fw-bold">先着受付終了日時<span class="text-muted small fw-normal ms-1">（任意）</span></label>' +
+'<div class="d-flex gap-2 align-items-center">' +
 '<input type="datetime-local" class="form-control" id="ee_first_come_deadline">' +
-'<div class="form-text">これ以降の応募は自動当選・満員表示にせず抽選待ちにします（人数の上限も設けません）</div>' +
+'<button type="button" class="btn btn-sm btn-outline-warning text-nowrap" onclick="setEeFirstComeDeadlineNow()">今すぐ抽選に切り替える</button>' +
+'<button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" onclick="clearEeFirstComeDeadline()">先着順に戻す</button>' +
+'</div>' +
+'<div class="form-text">この日時を過ぎると、自動当選・満員表示をやめて抽選待ちに切り替わります（人数の上限も設けません）。保存を押すまで反映されません。</div>' +
 '</div>' +
 '<div id="ee_referral_field" class="col-12" style="display:none">' +
 '<label class="form-label fw-bold">紹介コード</label>' +
@@ -1412,6 +1419,18 @@ function getDashboardHtml() {
 'var cb=document.getElementById("ee_first_come");' +
 'var eecf=document.getElementById("ee_capacity_field");' +
 'if(eecf)eecf.style.display=(cb&&cb.checked)?"":"none";' +
+'}' +
+'function setEeFirstComeDeadlineNow(){' +
+'var now=new Date();' +
+'var pad=function(n){return(n<10?"0":"")+n;};' +
+'var val=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate())+"T"+pad(now.getHours())+":"+pad(now.getMinutes());' +
+'var el=document.getElementById("ee_first_come_deadline");' +
+'if(el)el.value=val;' +
+'alert("先着受付終了日時を現在時刻にセットしました。「保存する」を押すと抽選待ちに切り替わります。");' +
+'}' +
+'function clearEeFirstComeDeadline(){' +
+'var el=document.getElementById("ee_first_come_deadline");' +
+'if(el)el.value="";' +
 '}' +
 'function loadReferralCodes(eventName){' +
 'var box=document.getElementById("ee_referral_list");' +

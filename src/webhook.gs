@@ -239,6 +239,11 @@ function handleOuboStatus(event) {
       }
     }
 
+    // 先着受付は終了し抽選待ちの期間に入っている場合：残り枠は示さず抽選であることを明示する
+    if (!status && ev.isFirstCome && ev.capacity > 0 && isLotteryPhase) {
+      status = '抽選待ち（先着受付は終了しました）';
+    }
+
     // どこにも存在しない場合は募集終了日時で期間中か終了かを判定
     // closingDateTimeAt（日時）があればそちらを優先し時刻も表示する
     // オンラインイベントで締め切りなしの場合は「常時募集中」と表示する
